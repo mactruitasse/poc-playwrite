@@ -1,0 +1,50 @@
+# Example n8n values for a local POC.
+# - Queue mode: uses PostgreSQL + Redis (enabled below) and workers/webhook nodes.
+# - Playwright community node: installed via npm package `n8n-nodes-playwright`.
+#
+# SECURITY NOTE: passwords are placeholders. For production, source them from Vault
+# (e.g., via External Secrets Operator) and reference existing Kubernetes Secrets.
+
+# Database type for n8n
+# (Queue mode typically uses postgresdb)
+db:
+  type: postgresdb
+
+# --- Enable bundled PostgreSQL (POC only)
+postgresql:
+  enabled: true
+  auth:
+    database: n8n
+    username: n8n
+    password: "CHANGE_ME_POSTGRES_PASSWORD"
+
+# --- Enable bundled Redis (POC only)
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: "CHANGE_ME_REDIS_PASSWORD"
+
+# --- Queue mode components
+main:
+  count: 1
+
+worker:
+  mode: queue
+  count: 1
+  concurrency: 5
+
+webhook:
+  mode: queue
+  count: 1
+  # For local access with port-forward. Update to your public URL when you add an Ingress.
+  url: "http://localhost:5678"
+
+# --- Community nodes (npm packages)
+nodes:
+  external:
+    allowAll: false
+    packages:
+      - "n8n-nodes-playwright"
+    reinstallMissingPackages: true
