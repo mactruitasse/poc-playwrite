@@ -13,7 +13,7 @@ spec:
   source:
     # TODO: replace with your GitHub repo URL (HTTPS or SSH)
     # Example: https://github.com/mactruitasse/poc-playwrite.git
-    repoURL: https://github.com/REPLACE_ME/REPLACE_ME.git
+    repoURL: https://github.com/mactruitasse/poc-playwrite.git
     targetRevision: main
 
     # This bootstrap expects the n8n Helm chart to be vendored into this repo
