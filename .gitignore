@@ -1,0 +1,21 @@
+# Do not commit secrets
+*.kubeconfig
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.env
+.env*
+
+# OS/Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Helm / temp
+*.tgz
+
+# Local tools
+.terraform/
+

@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: n8n-prod
+  namespace: argocd
+spec:
+  project: default
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: n8n-prod
+
+  source:
+    # TODO: replace with your GitHub repo URL (HTTPS or SSH)
+    # Example: https://github.com/mactruitasse/poc-playwrite.git
+    repoURL: https://github.com/REPLACE_ME/REPLACE_ME.git
+    targetRevision: main
+
+    # This bootstrap expects the n8n Helm chart to be vendored into this repo
+    # under charts/n8n/ (see scripts/vendor_n8n_chart.sh).
+    path: charts/n8n
+
+    helm:
+      valueFiles:
+        - ../apps/n8n/values-prod.yaml
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
