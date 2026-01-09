@@ -2,7 +2,7 @@
 
 # --- Image n8n custom (pré-bakée avec n8n-nodes-playwright)
 image:
-  repository: localhost:5001/n8n/n8n-playwright
+  repository: n8n/n8n-playwright
   tag: "2.2.5-pw0.2.21"
   pullPolicy: IfNotPresent
 
