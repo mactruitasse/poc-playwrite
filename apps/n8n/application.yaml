@@ -22,7 +22,7 @@ spec:
 
     helm:
       valueFiles:
-        - ../apps/n8n/values-prod.yaml
+        - ../../apps/n8n/values-prod.yaml
 
   syncPolicy:
     automated:
