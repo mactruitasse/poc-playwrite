@@ -1,35 +1,32 @@
-# Example n8n values for a local POC.
-# - Queue mode: uses PostgreSQL + Redis (enabled below) and workers/webhook nodes.
-# - Playwright community node: installed via npm package `n8n-nodes-playwright`.
-#
-# SECURITY NOTE: passwords are placeholders. For production, source them from Vault
-# (e.g., via External Secrets Operator) and reference existing Kubernetes Secrets.
+# values-prod.yaml
 
-# Database type for n8n
-# (Queue mode typically uses postgresdb)
+# --- Image n8n custom (pré-bakée avec n8n-nodes-playwright)
+image:
+  repository: localhost:5001/n8n/n8n-playwright
+  tag: "2.2.5-pw0.2.21"
+  pullPolicy: IfNotPresent
+
+# --- Base de données (queue mode => Postgres)
 db:
   type: postgresdb
 
-# --- Enable bundled PostgreSQL (POC only)
+# --- PostgreSQL (subchart)
 postgresql:
   enabled: true
   auth:
     database: n8n
     username: n8n
-    password: "CHANGE_ME_POSTGRES_PASSWORD"
+    password: n8n-local-password
 
-# --- Enable bundled Redis (POC only)
+# --- Redis (subchart)
 redis:
   enabled: true
   architecture: standalone
   auth:
     enabled: true
-    password: "CHANGE_ME_REDIS_PASSWORD"
+    password: redis-local-password
 
-# --- Queue mode components
-main:
-  count: 1
-
+# --- Queue mode : workers + webhook processors
 worker:
   mode: queue
   count: 1
@@ -38,13 +35,18 @@ worker:
 webhook:
   mode: queue
   count: 1
-  # For local access with port-forward. Update to your public URL when you add an Ingress.
+  # En local (port-forward), tu peux laisser une URL simple.
+  # En prod (ingress/domaine), tu mettras l'URL publique des webhooks.
   url: "http://localhost:5678"
 
-# --- Community nodes (npm packages)
+main:
+  count: 1
+
+# --- IMPORTANT : on désactive l'installation de community nodes au runtime
+# car n8n-nodes-playwright refuse npm (only-allow pnpm).
+# Le package est déjà dans l'image Docker.
 nodes:
   external:
     allowAll: false
-    packages:
-      - "n8n-nodes-playwright"
-    reinstallMissingPackages: true
+    packages: []
+    reinstallMissingPackages: false
