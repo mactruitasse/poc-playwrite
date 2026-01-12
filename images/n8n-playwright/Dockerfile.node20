@@ -1,0 +1,30 @@
+FROM n8nio/n8n:2.2.5 AS n8n_src
+
+FROM node:20-bullseye
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copier n8n depuis l'image officielle
+COPY --from=n8n_src /usr/local/bin/n8n /usr/local/bin/n8n
+COPY --from=n8n_src /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+RUN groupadd -g 1000 node && useradd -m -u 1000 -g 1000 -s /bin/bash node
+
+RUN npm i -g pnpm@9 --force \
+ && mkdir -p /home/node/.n8n/nodes /home/node/.cache/ms-playwright \
+ && chown -R node:node /home/node
+
+USER node
+ENV HOME=/home/node
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
+ENV PATH="/home/node/.n8n/nodes/node_modules/.bin:${PATH}"
+
+WORKDIR /home/node/.n8n/nodes
+
+RUN pnpm add playwright@1.49.0 n8n-nodes-playwright@0.2.21 \
+ && pnpm exec playwright install chromium --with-deps
+
+EXPOSE 5678
+CMD ["n8n"]
