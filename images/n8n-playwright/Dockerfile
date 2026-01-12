@@ -1,27 +1,27 @@
-FROM node:20-bullseye
+FROM mcr.microsoft.com/playwright:v1.49.0-jammy
 
-# 1) Outils
-RUN npm i -g n8n@2.2.5
-RUN npm i -g pnpm@9 --force
+RUN npm -g i n8n@2.2.4 playwright@1.49.0
 
-# 2) Dossier des community nodes
-RUN mkdir -p /home/node/.n8n/nodes \
- && mkdir -p /home/node/.cache/ms-playwright \
- && chown -R node:node /home/node/.n8n /home/node/.cache
+# user "node" sans UID forcé (UID 1000 est déjà utilisé dans l'image)
+RUN set -eux; \
+    if ! id -u node >/dev/null 2>&1; then \
+      useradd --create-home --shell /bin/bash node; \
+    fi
 
-# Playwright install location (aligné avec le cache Linux par défaut ~/.cache/ms-playwright) :contentReference[oaicite:2]{index=2}
-ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
-ENV PATH="/home/node/.n8n/nodes/node_modules/.bin:${PATH}"
+RUN set -eux; \
+    mkdir -p /home/node/.cache /home/node/.n8n/nodes /root/.cache; \
+    ln -sf /ms-playwright /home/node/.cache/ms-playwright; \
+    ln -sf /ms-playwright /root/.cache/ms-playwright; \
+    chown -R node:node /home/node
+
+USER node
 WORKDIR /home/node/.n8n/nodes
 
-# 3) Installer le package Playwright + le community node
-#    + installer Chromium + dépendances système (install --with-deps) :contentReference[oaicite:3]{index=3}
-RUN pnpm add playwright@1.49.0 n8n-nodes-playwright@0.2.21 \
- && pnpm exec playwright install --with-deps chromium \
- && pnpm rebuild n8n-nodes-playwright
+RUN npm init -y \
+ && npm install --omit=dev n8n-nodes-playwright
 
-# 4) Runtime
-USER node
-ENV HOME=/home/node
+ENV N8N_COMMUNITY_PACKAGES_ENABLED=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
 EXPOSE 5678
 CMD ["n8n"]
