@@ -31,9 +31,13 @@ worker:
   mode: queue
   count: 1
   concurrency: 5
-  # IMPORTANT : on désactive la persistence sur /home/node/.n8n pour ne pas masquer les nodes pré-bakés dans l'image
-  persistence:
-    enabled: false
+  extraEnv:
+    - name: N8N_CUSTOM_EXTENSIONS
+      value: "/home/node/.n8n/nodes"
+    - name: N8N_COMMUNITY_PACKAGES_ENABLED
+      value: "true"
+    - name: N8N_UNVERIFIED_PACKAGES_ENABLED
+      value: "true"
 
 webhook:
   mode: queue
@@ -41,18 +45,26 @@ webhook:
   # En local (port-forward), tu peux laisser une URL simple.
   # En prod (ingress/domaine), tu mettras l'URL publique des webhooks.
   url: "http://localhost:5678"
-  # NOTE: le chart n8n (community-charts) ne supporte pas webhook.persistence
-  # (sinon erreur de schéma "Additional property persistence is not allowed")
+  extraEnv:
+    - name: N8N_CUSTOM_EXTENSIONS
+      value: "/home/node/.n8n/nodes"
+    - name: N8N_COMMUNITY_PACKAGES_ENABLED
+      value: "true"
+    - name: N8N_UNVERIFIED_PACKAGES_ENABLED
+      value: "true"
 
 main:
   count: 1
-  # IMPORTANT : on désactive la persistence sur /home/node/.n8n pour ne pas masquer les nodes pré-bakés dans l'image
-  persistence:
-    enabled: false
+  extraEnv:
+    - name: N8N_CUSTOM_EXTENSIONS
+      value: "/home/node/.n8n/nodes"
+    - name: N8N_COMMUNITY_PACKAGES_ENABLED
+      value: "true"
+    - name: N8N_UNVERIFIED_PACKAGES_ENABLED
+      value: "true"
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
-# car n8n-nodes-playwright refuse npm (only-allow pnpm).
-# Le package est déjà dans l'image Docker.
+# car le package est déjà dans l'image Docker.
 nodes:
   external:
     allowAll: false
