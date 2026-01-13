@@ -1,16 +1,14 @@
-# Dockerfile
 # syntax=docker/dockerfile:1
 
 FROM node:20.19.6-bookworm-slim
 
 ARG N8N_VERSION=2.2.4
 ARG PLAYWRIGHT_VERSION=1.49.0
-# Pin optionnel (reproductibilité). Change si besoin.
-ARG PNPM_VERSION=9.15.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     N8N_USER_FOLDER=/home/node/.n8n \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    N8N_LISTEN_ADDRESS=0.0.0.0
 
 # Outils minimaux + init propre
 RUN apt-get update \
@@ -33,16 +31,12 @@ RUN set -eux; \
     chmod -R a+rX /ms-playwright; \
     chown -R node:node /home/node
 
-# Installer le community node avec pnpm (only-allow pnpm)
+# Installer le community node (le postinstall peut faire des checks/installs)
 WORKDIR /home/node/.n8n/nodes
 USER root
-RUN set -eux; \
-    corepack enable; \
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate; \
-    npm init -y; \
-    pnpm add --prod n8n-nodes-playwright; \
-    pnpm store prune; \
-    chown -R node:node /home/node/.n8n
+RUN npm init -y \
+ && npm install --omit=dev n8n-nodes-playwright \
+ && chown -R node:node /home/node/.n8n
 
 # Patch "community-packages.ee" si n8n attend le suffixe .ee
 # (on vise /usr/local/lib/node_modules ou /usr/lib/node_modules selon l'image)
