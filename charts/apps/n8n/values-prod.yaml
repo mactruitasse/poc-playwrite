@@ -31,43 +31,26 @@ worker:
   mode: queue
   count: 1
   concurrency: 5
-  extraEnv:
-    - name: N8N_CUSTOM_EXTENSIONS
-      value: "/home/node/.n8n/nodes"
-    - name: N8N_COMMUNITY_PACKAGES_ENABLED
-      value: "true"
-    - name: N8N_UNVERIFIED_PACKAGES_ENABLED
-      value: "true"
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 webhook:
   mode: queue
   count: 1
-  # En local (port-forward), tu peux laisser une URL simple.
-  # En prod (ingress/domaine), tu mettras l'URL publique des webhooks.
   url: "http://localhost:5678"
-  extraEnv:
-    - name: N8N_CUSTOM_EXTENSIONS
-      value: "/home/node/.n8n/nodes"
-    - name: N8N_COMMUNITY_PACKAGES_ENABLED
-      value: "true"
-    - name: N8N_UNVERIFIED_PACKAGES_ENABLED
-      value: "true"
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 main:
   count: 1
-  extraEnv:
-    - name: N8N_CUSTOM_EXTENSIONS
-      value: "/home/node/.n8n/nodes"
-    - name: N8N_COMMUNITY_PACKAGES_ENABLED
-      value: "true"
-    - name: N8N_UNVERIFIED_PACKAGES_ENABLED
-      value: "true"
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
-# car le package est déjà dans l'image Docker.
+# car n8n-nodes-playwright refuse npm (only-allow pnpm).
+# Le package est déjà dans l'image Docker.
 nodes:
   external:
     allowAll: false
     packages: []
     reinstallMissingPackages: false
-
