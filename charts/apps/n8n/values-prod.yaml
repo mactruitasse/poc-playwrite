@@ -3,7 +3,7 @@
 # --- Image n8n custom (pré-bakée avec n8n-nodes-playwright)
 image:
   repository: n8n-playwright-local
-  tag: "2.2.4-pw1.49.0-fix2"
+  tag: "2.2.4-pw1.49.0-fix3"
   pullPolicy: IfNotPresent
 
 # --- Base de données (queue mode => Postgres)
