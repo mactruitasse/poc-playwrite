@@ -1,9 +1,12 @@
+# Dockerfile
 # syntax=docker/dockerfile:1
 
 FROM node:20.19.6-bookworm-slim
 
 ARG N8N_VERSION=2.2.4
 ARG PLAYWRIGHT_VERSION=1.49.0
+# Pin optionnel (reproductibilité). Change si besoin.
+ARG PNPM_VERSION=9.15.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     N8N_USER_FOLDER=/home/node/.n8n \
@@ -30,15 +33,16 @@ RUN set -eux; \
     chmod -R a+rX /ms-playwright; \
     chown -R node:node /home/node
 
-# Installer le community node (le postinstall peut faire des checks/installs)
+# Installer le community node avec pnpm (only-allow pnpm)
 WORKDIR /home/node/.n8n/nodes
 USER root
-RUN npm init -y \
- && npm install --omit=dev n8n-nodes-playwright \
- && chown -R node:node /home/node/.n8n
-
-# Workaround ESM: n8n tente d'importer ".../*.module" (sans .js). En ESM, Node ne cherche pas les extensions.
-# On crée donc des liens "xxx.module" -> "xxx.module.js" dans tous les modules.
+RUN set -eux; \
+    corepack enable; \
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate; \
+    npm init -y; \
+    pnpm add --prod n8n-nodes-playwright; \
+    pnpm store prune; \
+    chown -R node:node /home/node/.n8n
 
 # Patch "community-packages.ee" si n8n attend le suffixe .ee
 # (on vise /usr/local/lib/node_modules ou /usr/lib/node_modules selon l'image)
@@ -61,7 +65,6 @@ RUN set -eux; \
           ln -sf "$(basename "$f")" "${f%.js}"; \
         done; \
   done
-
 
 USER node
 EXPOSE 5678

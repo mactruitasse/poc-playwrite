@@ -31,6 +31,9 @@ worker:
   mode: queue
   count: 1
   concurrency: 5
+  # IMPORTANT : on désactive la persistence sur /home/node/.n8n pour ne pas masquer les nodes pré-bakés dans l'image
+  persistence:
+    enabled: false
 
 webhook:
   mode: queue
@@ -38,9 +41,15 @@ webhook:
   # En local (port-forward), tu peux laisser une URL simple.
   # En prod (ingress/domaine), tu mettras l'URL publique des webhooks.
   url: "http://localhost:5678"
+  # IMPORTANT : on désactive la persistence sur /home/node/.n8n pour ne pas masquer les nodes pré-bakés dans l'image
+  persistence:
+    enabled: false
 
 main:
   count: 1
+  # IMPORTANT : on désactive la persistence sur /home/node/.n8n pour ne pas masquer les nodes pré-bakés dans l'image
+  persistence:
+    enabled: false
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
 # car n8n-nodes-playwright refuse npm (only-allow pnpm).
