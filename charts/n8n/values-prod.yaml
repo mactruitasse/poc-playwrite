@@ -1,0 +1,56 @@
+# values-prod.yaml
+
+# --- Image n8n custom (pré-bakée avec n8n-nodes-playwright)
+image:
+  repository: n8n-playwright-local
+  tag: "2.2.4-pw1.49.0-fix4"
+  pullPolicy: IfNotPresent
+
+# --- Base de données (queue mode => Postgres)
+db:
+  type: postgresdb
+
+# --- PostgreSQL (subchart)
+postgresql:
+  enabled: true
+  auth:
+    database: n8n
+    username: n8n
+    password: n8n-local-password
+
+# --- Redis (subchart)
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: redis-local-password
+
+# --- Queue mode : workers + webhook processors
+worker:
+  mode: queue
+  count: 0
+  concurrency: 5
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+
+webhook:
+  mode: queue
+  count: 0
+  url: "http://localhost:5678"
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+
+main:
+  count: 0
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+
+# --- IMPORTANT : on désactive l'installation de community nodes au runtime
+# car n8n-nodes-playwright refuse npm (only-allow pnpm).
+# Le package est déjà dans l'image Docker.
+nodes:
+  external:
+    allowAll: false
+    packages: []
+    reinstallMissingPackages: false
