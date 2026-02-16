@@ -11,6 +11,7 @@ service:
   port: 5678
 
 # --- Ingress (avec annotation Argo CD)
+# IMPORTANT: ingress.hosts[].host ne doit JAMAIS contenir de port (pas de :5678)
 ingress:
   enabled: true
   className: nginx
@@ -59,7 +60,9 @@ worker:
 webhook:
   mode: queue
   count: 1
-  url: "http://n8n.localhost:5678"
+  # IMPORTANT: ce chart réutilise webhook.url pour construire un host d'Ingress.
+  # Donc NE PAS mettre de port ici, sinon l'Ingress devient invalide.
+  url: "http://n8n.localhost"
   readinessProbe:
     httpGet:
       path: /healthz/readiness
@@ -74,6 +77,7 @@ main:
     httpGet:
       path: /healthz/readiness
       port: http
+    # évite la probe trop tôt (observé : connection refused juste après le start)
     initialDelaySeconds: 20
     periodSeconds: 10
     timeoutSeconds: 2
@@ -82,6 +86,8 @@ main:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
+# car n8n-nodes-playwright refuse npm (only-allow pnpm).
+# Le package est déjà dans l'image Docker.
 nodes:
   external:
     allowAll: false
