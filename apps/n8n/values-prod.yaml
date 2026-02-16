@@ -10,13 +10,14 @@ image:
 service:
   port: 5678
 
-# --- Ingress (charts/n8n/templates/ingress.yaml attend ingress.className + ingress.hosts)
+# --- Ingress (avec annotation Argo CD)
 ingress:
   enabled: true
   className: nginx
-  annotations: {}
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
   hosts:
-    - host: n8n.monsite.fr
+    - host: n8n.localhost
       paths:
         - path: /
           pathType: Prefix
@@ -58,8 +59,7 @@ worker:
 webhook:
   mode: queue
   count: 1
-  # IMPORTANT: en prod derrière Ingress, évite localhost -> mets l'URL publique
-  url: "http://n8n.monsite.fr"
+  url: "http://n8n.localhost:5678"
   readinessProbe:
     httpGet:
       path: /healthz/readiness
@@ -74,7 +74,6 @@ main:
     httpGet:
       path: /healthz/readiness
       port: http
-    # évite la probe trop tôt (observé : connection refused juste après le start)
     initialDelaySeconds: 20
     periodSeconds: 10
     timeoutSeconds: 2
@@ -83,8 +82,6 @@ main:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
-# car n8n-nodes-playwright refuse npm (only-allow pnpm).
-# Le package est déjà dans l'image Docker.
 nodes:
   external:
     allowAll: false
