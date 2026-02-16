@@ -1,3 +1,4 @@
+# apps/n8n/values-prod.yaml
 # values-prod.yaml
 
 # --- Image n8n custom (pré-bakée avec n8n-nodes-playwright)
@@ -5,24 +6,6 @@ image:
   repository: n8n-playwright-local
   tag: "2.2.4-pw1.49.0-fix4"
   pullPolicy: IfNotPresent
-
-# --- Service (port utilisé par l'Ingress : $.Values.service.port)
-service:
-  port: 5678
-
-# --- Ingress (avec annotation Argo CD)
-# IMPORTANT: ingress.hosts[].host ne doit JAMAIS contenir de port (pas de :5678)
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-  hosts:
-    - host: n8n.localhost
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
 # --- Base de données (queue mode => Postgres)
 db:
@@ -49,27 +32,19 @@ worker:
   mode: queue
   count: 1
   concurrency: 5
-  readinessProbe:
-    httpGet:
-      path: /healthz/readiness
-      port: http
-    timeoutSeconds: 2
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    # Local-only: permet l'UI en HTTP sans cookie Secure
+    N8N_SECURE_COOKIE: "false"
 
 webhook:
   mode: queue
   count: 1
-  # IMPORTANT: ce chart réutilise webhook.url pour construire un host d'Ingress.
-  # Donc NE PAS mettre de port ici, sinon l'Ingress devient invalide.
-  url: "http://n8n.localhost"
-  readinessProbe:
-    httpGet:
-      path: /healthz/readiness
-      port: http
-    timeoutSeconds: 2
+  url: "http://localhost:5678"
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    # Local-only: permet l'UI en HTTP sans cookie Secure
+    N8N_SECURE_COOKIE: "false"
 
 main:
   count: 1
@@ -84,6 +59,8 @@ main:
     failureThreshold: 12
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    # Local-only: permet l'UI en HTTP sans cookie Secure
+    N8N_SECURE_COOKIE: "false"
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
 # car n8n-nodes-playwright refuse npm (only-allow pnpm).
