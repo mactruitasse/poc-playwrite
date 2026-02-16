@@ -42,7 +42,7 @@ webhook:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 main:
-  count: 1
+  count: 0
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
