@@ -40,7 +40,8 @@ worker:
 webhook:
   mode: queue
   count: 1
-  url: "http://localhost:5678"
+  # URL publique (celle que les webhooks et callbacks doivent utiliser derrière l'ingress)
+  url: "http://n8n.localhost"
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
     # Local-only: permet l'UI en HTTP sans cookie Secure
@@ -61,6 +62,16 @@ main:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
     # Local-only: permet l'UI en HTTP sans cookie Secure
     N8N_SECURE_COOKIE: "false"
+
+# --- Ingress (exposition locale via ingress-nginx)
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: n8n.localhost
+      paths:
+        - path: /
+          pathType: Prefix
 
 # --- IMPORTANT : on désactive l'installation de community nodes au runtime
 # car n8n-nodes-playwright refuse npm (only-allow pnpm).
