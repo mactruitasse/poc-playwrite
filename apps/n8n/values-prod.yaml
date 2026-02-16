@@ -6,6 +6,22 @@ image:
   tag: "2.2.4-pw1.49.0-fix4"
   pullPolicy: IfNotPresent
 
+# --- Service (port utilisé par l'Ingress : $.Values.service.port)
+service:
+  port: 5678
+
+# --- Ingress (charts/n8n/templates/ingress.yaml attend ingress.className + ingress.hosts)
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: n8n.monsite.fr
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
 # --- Base de données (queue mode => Postgres)
 db:
   type: postgresdb
@@ -42,7 +58,8 @@ worker:
 webhook:
   mode: queue
   count: 1
-  url: "http://localhost:5678"
+  # IMPORTANT: en prod derrière Ingress, évite localhost -> mets l'URL publique
+  url: "http://n8n.monsite.fr"
   readinessProbe:
     httpGet:
       path: /healthz/readiness
