@@ -31,6 +31,11 @@ worker:
   mode: queue
   count: 1
   concurrency: 5
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    timeoutSeconds: 2
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
@@ -38,11 +43,25 @@ webhook:
   mode: queue
   count: 1
   url: "http://localhost:5678"
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    timeoutSeconds: 2
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 main:
   count: 1
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    # évite la probe trop tôt (observé : connection refused juste après le start)
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 12
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
