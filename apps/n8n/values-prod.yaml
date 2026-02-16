@@ -29,20 +29,20 @@ redis:
 # --- Queue mode : workers + webhook processors
 worker:
   mode: queue
-  count: 0
+  count: 1
   concurrency: 5
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 webhook:
   mode: queue
-  count: 0
+  count: 1
   url: "http://localhost:5678"
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 
 main:
-  count: 0
+  count: 1
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
 

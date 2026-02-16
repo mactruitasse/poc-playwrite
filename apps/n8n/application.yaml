@@ -11,13 +11,8 @@ spec:
     namespace: n8n-prod
 
   source:
-    # TODO: replace with your GitHub repo URL (HTTPS or SSH)
-    # Example: https://github.com/mactruitasse/poc-playwrite.git
     repoURL: https://github.com/mactruitasse/poc-playwrite.git
     targetRevision: main
-
-    # This bootstrap expects the n8n Helm chart to be vendored into this repo
-    # under charts/n8n/ (see scripts/vendor_n8n_chart.sh).
     path: charts/n8n
 
     helm:
@@ -28,3 +23,5 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
