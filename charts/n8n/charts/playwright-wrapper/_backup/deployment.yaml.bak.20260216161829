@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "playwright-wrapper.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "playwright-wrapper.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "playwright-wrapper.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "playwright-wrapper.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ include "playwright-wrapper.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: wrapper
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.apiTokenSecretName }}
+                  key: {{ .Values.env.apiTokenSecretKey }}
+            - name: TARGET_NAMESPACE
+              value: {{ .Values.env.targetNamespace | quote }}
+            - name: PW_POD_LABEL_KEY
+              value: {{ .Values.env.playwrightPodLabelKey | quote }}
+            - name: PW_POD_LABEL_VALUE
+              value: {{ .Values.env.playwrightPodLabelValue | quote }}
+            - name: PW_MCP_PORT
+              value: {{ .Values.env.playwrightMcpPort | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,104 @@
+# apps/n8n/values-prod.yaml
+# values-prod.yaml
+
+# --- Image n8n custom (pré-bakée avec n8n-nodes-playwright)
+image:
+  repository: n8n-playwright-local
+  tag: "2.2.4-pw1.49.0-fix4"
+  pullPolicy: IfNotPresent
+
+# --- Base de données (queue mode => Postgres)
+db:
+  type: postgresdb
+
+# --- PostgreSQL (subchart)
+postgresql:
+  enabled: true
+  auth:
+    database: n8n
+    username: n8n
+    password: n8n-local-password
+
+# --- Redis (subchart)
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: redis-local-password
+
+# --- Queue mode : workers + webhook processors
+worker:
+  mode: queue
+  count: 1
+  concurrency: 5
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    # Local-only: permet l'UI en HTTP sans cookie Secure
+    N8N_SECURE_COOKIE: "false"
+
+webhook:
+  mode: queue
+  count: 1
+  # URL publique (celle que les webhooks et callbacks doivent utiliser derrière l'ingress)
+  url: "http://n8n.localhost"
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    # Local-only: permet l'UI en HTTP sans cookie Secure
+    N8N_SECURE_COOKIE: "false"
+
+main:
+  count: 1
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    # évite la probe trop tôt (observé : connection refused juste après le start)
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 12
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    # Local-only: permet l'UI en HTTP sans cookie Secure
+    N8N_SECURE_COOKIE: "false"
+
+# --- Ingress (exposition locale via ingress-nginx)
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: n8n.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+
+# --- IMPORTANT : on désactive l'installation de community nodes au runtime
+# car n8n-nodes-playwright refuse npm (only-allow pnpm).
+# Le package est déjà dans l'image Docker.
+nodes:
+  external:
+    allowAll: false
+    packages: []
+    reinstallMissingPackages: false
+
+playwrightWrapper:
+  enabled: true
+  image:
+    repository: playwright-wrapper
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  env:
+    apiTokenSecretName: playwright-wrapper-secret
+    apiTokenSecretKey: API_TOKEN
+    targetNamespace: default
+    playwrightPodLabelKey: "app"
+    playwrightPodLabelValue: "playwright-ephemeral"
+    playwrightMcpPort: "8933"
+  rbac:
+    create: true
+  permissions:
+    canCreatePods: false

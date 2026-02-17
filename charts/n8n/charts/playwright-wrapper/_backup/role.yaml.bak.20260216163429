@@ -1,0 +1,16 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "playwright-wrapper.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+{{- if .Values.permissions.canCreatePods }}
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "delete"]
+{{- end }}
+{{- end -}}

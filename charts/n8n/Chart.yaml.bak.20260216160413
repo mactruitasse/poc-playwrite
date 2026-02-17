@@ -76,9 +76,8 @@ apiVersion: v2
 appVersion: 2.6.3
 dependencies:
   - name: playwright-wrapper
-    alias: playwright-wrapper
     version: 0.1.0
-    condition: playwright-wrapper.enabled
+    condition: playwrightWrapper.enabled
   - condition: redis.enabled
     name: redis
     repository: https://charts.bitnami.com/bitnami
