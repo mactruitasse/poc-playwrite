@@ -80,7 +80,3 @@ playwright-wrapper:
 # Disable ingress in default release to avoid host/path conflict with n8n-prod
 ingress:
   enabled: false
-
-# Force-disable ingress (override)
-ingress:
-  enabled: false
