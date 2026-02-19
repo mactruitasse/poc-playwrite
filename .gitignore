@@ -19,3 +19,8 @@
 # Local tools
 .terraform/
 
+# Helm charts: never keep backups in templates/
+**/templates/*.bak*
+**/templates/*~ 
+**/templates/*.swp
+**/templates/*.orig
