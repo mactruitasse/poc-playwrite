@@ -60,7 +60,7 @@ playwright-wrapper:
   enabled: true
   image:
     repository: playwright-wrapper
-    tag: proxyany-retry-session-not-found-20260218-160448
+    tag: 1.0.1-fix-sse-endpoint-20260220-113250
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
