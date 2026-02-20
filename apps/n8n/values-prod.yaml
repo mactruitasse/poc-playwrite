@@ -1,6 +1,6 @@
 image:
   repository: n8n-playwright-local
-  tag: 1.0.1-fix-host
+  tag: 2.2.4-pw1.49.0-fix4
   pullPolicy: IfNotPresent
 db:
   type: postgresdb
