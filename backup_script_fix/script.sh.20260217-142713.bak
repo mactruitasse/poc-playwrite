@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+############################################
+# Variables configurables
+############################################
+NS="${NS:-n8n-prod}"                 # namespace où lancer le pod curltest
+WRAPPER_NS="${WRAPPER_NS:-default}"  # namespace du wrapper playwright
+WRAPPER_SVC="${WRAPPER_SVC:-playwright-wrapper}"
+WRAPPER_PORT="${WRAPPER_PORT:-8080}"
+API_TOKEN="${API_TOKEN:-test}"       # export API_TOKEN=... conseillé
+CURL_IMAGE="${CURL_IMAGE:-curlimages/curl:8.6.0}"
+
+CONNECT_TIMEOUT="${CONNECT_TIMEOUT:-2}"      # secondes
+SSE_READ_MAX_TIME="${SSE_READ_MAX_TIME:-10}"# secondes (timeout attendu)
+VERIFY_MAX_TIME="${VERIFY_MAX_TIME:-3}"      # secondes
+
+POD_BASENAME="${POD_BASENAME:-curltest-sse}"
+TS="$(date +%Y%m%d-%H%M%S)"
+POD_NAME="${POD_BASENAME}-${TS}"
+
+WORKDIR="${WORKDIR:-/tmp/pw-sse-test}"
+mkdir -p "$WORKDIR"
+LOG_RAW="${WORKDIR}/sse-raw-${TS}.log"
+LOG_JSON="${WORKDIR}/session-${TS}.json"
+
+############################################
+# Sauvegardes (rotation simple)
+############################################
+ls -1t "${WORKDIR}/"sse-raw-*.log 2>/dev/null | tail -n +11 | xargs -r rm -f
+ls -1t "${WORKDIR}/"session-*.json 2>/dev/null | tail -n +11 | xargs -r rm -f
+
+############################################
+# Helpers
+############################################
+die() { echo "ERREUR: $*" >&2; exit 1; }
+need_bin() { command -v "$1" >/dev/null 2>&1 || die "binaire requis introuvable: $1"; }
+
+need_bin kubectl
+need_bin awk
+need_bin sed
+need_bin grep
+need_bin tr
+need_bin date
+
+############################################
+# Création du pod curl temporaire
+############################################
+echo "==> Création pod ${NS}/${POD_NAME}"
+kubectl -n "$NS" run "$POD_NAME" --restart=Never --image="$CURL_IMAGE" --command -- sleep 3600 >/dev/null
+
+cleanup() { kubectl -n "$NS" delete pod "$POD_NAME" --ignore-not-found >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+echo "==> Attente pod Ready"
+kubectl -n "$NS" wait --for=condition=Ready "pod/${POD_NAME}" --timeout=60s >/dev/null
+echo "✅ Pod prêt"
+
+############################################
+# (1) POST /sessions sur le wrapper
+############################################
+WRAPPER_URL="http://${WRAPPER_SVC}.${WRAPPER_NS}.svc:${WRAPPER_PORT}/sessions"
+echo
+echo "==> (1) POST /sessions sur le wrapper: ${WRAPPER_URL}"
+
+SESSION_JSON="$(
+  kubectl -n "$NS" exec "$POD_NAME" -- sh -lc \
+  "curl -sS --connect-timeout '${CONNECT_TIMEOUT}' \
+    -H 'X-API-Token: ${API_TOKEN}' \
+    -H 'Content-Type: application/json' \
+    -X POST '${WRAPPER_URL}' \
+    -d '{}'"
+)"
+
+echo "$SESSION_JSON" | tee "$LOG_JSON"
+
+SESSION_ID="$(echo "$SESSION_JSON" | sed -n 's/.*"sessionId":"\([^"]*\)".*/\1/p')"
+TARGET_BASE="$(echo "$SESSION_JSON" | sed -n 's/.*"targetBase":"\([^"]*\)".*/\1/p')"
+
+[[ -n "${SESSION_ID:-}" ]] || die "sessionId introuvable dans la réponse JSON"
+[[ -n "${TARGET_BASE:-}" ]] || die "targetBase introuvable dans la réponse JSON"
+
+echo "✅ sessionId=${SESSION_ID}"
+echo "✅ targetBase=${TARGET_BASE}"
+
+############################################
+# (2) GET /sse : lire juste assez pour récupérer "data: /sse?sessionId=..."
+# Important: on capture stdout+stderr, puis on parse.
+############################################
+SSE_URL="${TARGET_BASE}/sse"
+echo
+echo "==> (2) Connexion à /sse pour obtenir l'endpoint: ${SSE_URL}"
+
+set +e
+SSE_MIXED="$(
+  kubectl -n "$NS" exec "$POD_NAME" -- sh -lc \
+  "curl -sS --no-buffer --connect-timeout '${CONNECT_TIMEOUT}' --max-time '${SSE_READ_MAX_TIME}' '${SSE_URL}' 2>&1"
+)"
+CURL_RC=$?
+set -e
+
+# RC=28 (timeout) est attendu pour un flux SSE
+if [[ "$CURL_RC" -ne 0 && "$CURL_RC" -ne 28 ]]; then
+  echo "$SSE_MIXED" | tee "$LOG_RAW" >/dev/null
+  die "curl a échoué (rc=${CURL_RC}) sur /sse"
+fi
+
+# Normalisation (retire \r éventuels)
+SSE_NORM="$(echo "$SSE_MIXED" | tr -d '\r')"
+echo "$SSE_NORM" | tee "$LOG_RAW" >/dev/null
+
+# Extraction robuste: première ligne qui commence par "data:"
+ENDPOINT_PATH="$(
+  echo "$SSE_NORM" \
+  | awk '/^data:[[:space:]]*/{sub(/^data:[[:space:]]*/,""); print; exit}'
+)"
+
+[[ -n "${ENDPOINT_PATH:-}" ]] || die "impossible d'extraire une ligne 'data: ...' (voir ${LOG_RAW})"
+echo "$ENDPOINT_PATH" | grep -qE '^/sse\?sessionId=' || die "data inattendue: '${ENDPOINT_PATH}' (voir ${LOG_RAW})"
+
+echo "✅ endpoint_path=${ENDPOINT_PATH}"
+
+############################################
+# (3) Vérification: ouverture courte de l'endpoint renvoyé
+############################################
+FULL_ENDPOINT_URL="${TARGET_BASE}${ENDPOINT_PATH}"
+echo
+echo "==> (3) Vérification (lecture courte): ${FULL_ENDPOINT_URL}"
+
+set +e
+VERIFY_MIXED="$(
+  kubectl -n "$NS" exec "$POD_NAME" -- sh -lc \
+  "curl -sS --no-buffer --connect-timeout '${CONNECT_TIMEOUT}' --max-time '${VERIFY_MAX_TIME}' '${FULL_ENDPOINT_URL}' 2>&1"
+)"
+VERIFY_RC=$?
+set -e
+
+if [[ "$VERIFY_RC" -ne 0 && "$VERIFY_RC" -ne 28 ]]; then
+  die "vérification endpoint SSE échouée (rc=${VERIFY_RC})"
+fi
+
+VERIFY_NORM="$(echo "$VERIFY_MIXED" | tr -d '\r')"
+if [[ -z "${VERIFY_NORM:-}" ]]; then
+  die "endpoint SSE ne renvoie rien dans ${VERIFY_MAX_TIME}s"
+fi
+
+echo "✅ endpoint SSE répond (rc=${VERIFY_RC})"
+echo
+echo "OK: sessionId=${SESSION_ID}"
+echo "OK: endpoint=${FULL_ENDPOINT_URL}"
+echo "Logs: ${LOG_RAW} et ${LOG_JSON}"
+

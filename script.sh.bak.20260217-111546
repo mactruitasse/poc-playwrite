@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+############################################
+# Config
+############################################
+FILE="./script.sh"
+
+############################################
+# Sauvegarde
+############################################
+TS="$(date +%Y%m%d-%H%M%S)"
+cp -a "${FILE}" "${FILE}.bak.${TS}"
+
+############################################
+# Supprime la ligne qui relance le script (bash "${FILE}")
+############################################
+# On enlève toute ligne exactement égale à: bash "${FILE}"
+# (et aussi la variante avec espaces)
+sed -i '/^[[:space:]]*bash[[:space:]]\+"\${FILE}"[[:space:]]*$/d' "${FILE}"
+
+############################################
+# Vérification: s’assurer qu’il ne s’auto-appelle plus
+############################################
+if grep -nE 'bash[[:space:]]+"\$\{FILE\}"' "${FILE}" >/dev/null 2>&1; then
+  echo "ERREUR: il reste encore une auto-invocation dans ${FILE}:"
+  grep -nE 'bash[[:space:]]+"\$\{FILE\}"' "${FILE}" || true
+  exit 1
+fi
+
+echo "✅ Auto-invocation supprimée."
+echo "==> Aperçu (20 dernières lignes):"
+tail -n 20 "${FILE}"

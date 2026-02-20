@@ -1,0 +1,22 @@
+Name:                     n8n-prod
+Namespace:                n8n-prod
+Labels:                   app.kubernetes.io/component=main
+                          app.kubernetes.io/instance=n8n-prod
+                          app.kubernetes.io/managed-by=Helm
+                          app.kubernetes.io/name=n8n
+                          app.kubernetes.io/part-of=n8n
+                          app.kubernetes.io/version=2.6.3
+                          helm.sh/chart=n8n-1.16.28
+Annotations:              argocd.argoproj.io/tracking-id: n8n-prod:/Service:n8n-prod/n8n-prod
+Selector:                 app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n
+Type:                     ClusterIP
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       10.96.184.105
+IPs:                      10.96.184.105
+Port:                     http  5678/TCP
+TargetPort:               http/TCP
+Endpoints:                10.244.0.29:5678,10.244.0.65:5678
+Session Affinity:         None
+Internal Traffic Policy:  Cluster
+Events:                   <none>

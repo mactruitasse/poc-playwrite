@@ -1,0 +1,44 @@
+==> Contexte kubectl
+kind-pw
+
+==> Wrapper: http://playwright-wrapper.default.svc:8080
+
+==> Pods wrapper
+playwright-wrapper-6c4dffb6c9-9sgp5   1/1     Running            0             21m    10.244.0.96    pw-control-plane   <none>           <none>
+
+==> Service + endpoints wrapper
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+playwright-wrapper   ClusterIP   10.96.249.44   <none>        8080/TCP   19h   app.kubernetes.io/instance=n8n,app.kubernetes.io/name=playwright-wrapper
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                 ENDPOINTS          AGE
+playwright-wrapper   10.244.0.96:8080   19h
+
+==> API_TOKEN OK (non affiché)
+
+==> (1) POST /sessions
+pod/curltest-20260217-115250 condition met
+{"sessionId":"59b9c4faffeeabad","namespace":"default","podName":"pw-59b9c4faffeeabad","serviceName":"pw-svc-59b9c4faffeeabad","targetBase":"http://pw-svc-59b9c4faffeeabad.default.svc.cluster.local:8933","baseUrl":"/sessions/59b9c4faffeeabad"}
+HTTP_CODE=200
+✅ sessionId=59b9c4faffeeabad
+✅ targetBase=http://pw-svc-59b9c4faffeeabad.default.svc.cluster.local:8933
+✅ baseUrl=/sessions/59b9c4faffeeabad
+
+==> (2) MCP check (direct sur targetBase)
+MCP_URL=http://pw-svc-59b9c4faffeeabad.default.svc.cluster.local:8933/mcp
+--- GET http://pw-svc-59b9c4faffeeabad.default.svc.cluster.local:8933/mcp (10s) ---
+HTTP/1.1 403 Forbidden
+Date: Tue, 17 Feb 2026 10:52:56 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Content-Length: 40
+
+Access is only allowed at localhost:8933
+--- POST ping JSON-RPC (10s) ---
+HTTP/1.1 403 Forbidden
+Date: Tue, 17 Feb 2026 10:52:56 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Content-Length: 40
+
+Access is only allowed at localhost:8933
+✅ Fin. Log: ./playwright-wrapper-test-20260217-115250.log

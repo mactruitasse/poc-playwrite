@@ -1,0 +1,62 @@
+==> Backup des Deployments
+
+==> Applique image/pullPolicy + rollout restart
+ns=default: container=wrapper
+deployment.apps/playwright-wrapper restarted
+ns=n8n-prod: container=wrapper
+deployment.apps/playwright-wrapper restarted
+
+==> Diagnostic rollout / pods
+
+==============================
+Namespace: default
+==============================
+NAME                 READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                              SELECTOR
+playwright-wrapper   0/1     1            0           19h   wrapper      playwright-wrapper:1.0.1-fix-host   app.kubernetes.io/instance=n8n,app.kubernetes.io/name=playwright-wrapper
+Waiting for deployment "playwright-wrapper" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "playwright-wrapper" rollout to finish: 1 old replicas are pending termination...
+==> Pods récents
+NAME                                  READY   STATUS             RESTARTS      AGE
+playwright-wrapper-7c6555b5c5-rnptb   0/1     ImagePullBackOff   0             3m15s
+playwright-wrapper-7d947d86d7-tgjl6   0/1     ImagePullBackOff   0             21s
+Pod: playwright-wrapper-7d947d86d7-tgjl6
+name=wrapper image=playwright-wrapper:1.0.1-fix-host pullPolicy=IfNotPresent
+name=wrapper ready=false restarts=0 state={"waiting":{"message":"Back-off pulling image \"playwright-wrapper:1.0.1-fix-host\": ErrImagePull: failed to pull and unpack image \"docker.io/library/playwright-wrapper:1.0.1-fix-host\": failed to resolve reference \"docker.io/library/playwright-wrapper:1.0.1-fix-host\": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed","reason":"ImagePullBackOff"}}
+==> Events (60 dernières lignes)
+Events:
+  Type     Reason     Age               From               Message
+  ----     ------     ----              ----               -------
+  Normal   Scheduled  20s               default-scheduler  Successfully assigned default/playwright-wrapper-7d947d86d7-tgjl6 to pw-control-plane
+  Normal   BackOff    19s               kubelet            Back-off pulling image "playwright-wrapper:1.0.1-fix-host"
+  Warning  Failed     19s               kubelet            Error: ImagePullBackOff
+  Normal   Pulling    4s (x2 over 20s)  kubelet            Pulling image "playwright-wrapper:1.0.1-fix-host"
+  Warning  Failed     3s (x2 over 19s)  kubelet            Failed to pull image "playwright-wrapper:1.0.1-fix-host": failed to pull and unpack image "docker.io/library/playwright-wrapper:1.0.1-fix-host": failed to resolve reference "docker.io/library/playwright-wrapper:1.0.1-fix-host": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+  Warning  Failed     3s (x2 over 19s)  kubelet            Error: ErrImagePull
+==> Logs (80 dernières lignes si dispo)
+
+==============================
+Namespace: n8n-prod
+==============================
+NAME                 READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES                              SELECTOR
+playwright-wrapper   0/1     1            0           110m   wrapper      playwright-wrapper:1.0.1-fix-host   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper
+Waiting for deployment "playwright-wrapper" rollout to finish: 1 old replicas are pending termination...
+==> Pods récents
+NAME                                  READY   STATUS             RESTARTS   AGE
+playwright-wrapper-86d46846b9-4jqjq   0/1     ImagePullBackOff   0          3m35s
+playwright-wrapper-65c4f7b889-fvp2p   0/1     ErrImagePull       0          40s
+Pod: playwright-wrapper-65c4f7b889-fvp2p
+name=wrapper image=playwright-wrapper:1.0.1-fix-host pullPolicy=IfNotPresent
+name=wrapper ready=false restarts=0 state={"waiting":{"message":"failed to pull and unpack image \"docker.io/library/playwright-wrapper:1.0.1-fix-host\": failed to resolve reference \"docker.io/library/playwright-wrapper:1.0.1-fix-host\": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed","reason":"ErrImagePull"}}
+==> Events (60 dernières lignes)
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  40s                default-scheduler  Successfully assigned n8n-prod/playwright-wrapper-65c4f7b889-fvp2p to pw-control-plane
+  Normal   Pulling    22s (x2 over 40s)  kubelet            Pulling image "playwright-wrapper:1.0.1-fix-host"
+  Warning  Failed     20s (x2 over 37s)  kubelet            Failed to pull image "playwright-wrapper:1.0.1-fix-host": failed to pull and unpack image "docker.io/library/playwright-wrapper:1.0.1-fix-host": failed to resolve reference "docker.io/library/playwright-wrapper:1.0.1-fix-host": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+  Warning  Failed     20s (x2 over 37s)  kubelet            Error: ErrImagePull
+  Normal   BackOff    6s (x2 over 37s)   kubelet            Back-off pulling image "playwright-wrapper:1.0.1-fix-host"
+  Warning  Failed     6s (x2 over 37s)   kubelet            Error: ImagePullBackOff
+==> Logs (80 dernières lignes si dispo)
+
+✅ Fin du diagnostic

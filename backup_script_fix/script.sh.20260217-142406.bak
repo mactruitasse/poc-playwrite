@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+############################################
+# Variables configurables
+############################################
+TARGET_SCRIPT="${TARGET_SCRIPT:-./script.sh}"
+BACKUP_DIR="${BACKUP_DIR:-./backup_script_fix}"
+RUN_AFTER_FIX="${RUN_AFTER_FIX:-1}"   # 1=exécuter après correction, 0=ne pas exécuter
+
+############################################
+# Helpers
+############################################
+die() { echo "ERREUR: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "commande requise introuvable: $1"; }
+
+need bash
+need mkdir
+need cp
+need sed
+need awk
+need head
+need tail
+need od
+need chmod
+need grep
+need nl
+
+[[ -f "$TARGET_SCRIPT" ]] || die "fichier introuvable: $TARGET_SCRIPT"
+
+############################################
+# Sauvegarde
+############################################
+mkdir -p "$BACKUP_DIR"
+TS="$(date +%Y%m%d-%H%M%S)"
+BACKUP_PATH="${BACKUP_DIR}/$(basename "$TARGET_SCRIPT").${TS}.bak"
+cp -a "$TARGET_SCRIPT" "$BACKUP_PATH"
+echo "✅ Sauvegarde créée: $BACKUP_PATH"
+
+############################################
+# Diagnostics avant correction
+############################################
+echo
+echo "==> Diagnostics (avant)"
+echo "--- 1ère ligne (affichage) ---"
+head -n 1 "$TARGET_SCRIPT" || true
+
+echo "--- 1ère ligne (hex, pour détecter BOM/CRLF) ---"
+# BOM UTF-8 = ef bb bf ; CRLF = 0d 0a
+head -n 1 "$TARGET_SCRIPT" | od -An -tx1 || true
+
+echo "--- Ligne 15 (si elle existe) ---"
+nl -ba "$TARGET_SCRIPT" | sed -n '15p' || true
+
+############################################
+# Correction: enlever BOM + CRLF, garantir shebang en 1ère ligne
+############################################
+TMP="${TARGET_SCRIPT}.tmp.$$"
+
+# 1) enlever BOM UTF-8 éventuel en début de fichier
+# 2) convertir CRLF -> LF
+# 3) écrire vers TMP
+awk 'NR==1{sub(/^\xef\xbb\xbf/,"")} {gsub(/\r$/,""); print}' "$TARGET_SCRIPT" > "$TMP"
+
+# Assurer que la première ligne est un shebang bash
+FIRST_LINE="$(head -n 1 "$TMP" || true)"
+if ! echo "$FIRST_LINE" | grep -qE '^#!.*(bash|/usr/bin/env bash)'; then
+  # Si pas de shebang, on en injecte un en première ligne
+  { echo '#!/usr/bin/env bash'; cat "$TMP"; } > "${TMP}.2"
+  mv -f "${TMP}.2" "$TMP"
+fi
+
+# Remplacer le script
+mv -f "$TMP" "$TARGET_SCRIPT"
+chmod +x "$TARGET_SCRIPT"
+
+############################################
+# Vérification après correction
+############################################
+echo
+echo "==> Vérification (après)"
+echo "--- 1ère ligne (affichage) ---"
+head -n 1 "$TARGET_SCRIPT"
+
+echo "--- 1ère ligne (hex) ---"
+head -n 1 "$TARGET_SCRIPT" | od -An -tx1
+
+echo "--- Vérif CRLF (doit être vide) ---"
+# affiche les lignes finissant par \r si il en reste
+grep -n $'\r$' "$TARGET_SCRIPT" || true
+
+echo "--- Exécution test: bash -n

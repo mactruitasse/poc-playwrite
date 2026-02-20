@@ -1,0 +1,1 @@
+ingress.networking.k8s.io/n8n-prod created

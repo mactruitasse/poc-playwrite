@@ -1,0 +1,8 @@
+NAME                            ADDRESSTYPE   PORTS   ENDPOINTS                 AGE
+n8n-prod-postgresql-9l75m       IPv4          5432    10.244.0.22               23h
+n8n-prod-postgresql-hl-2pqlm    IPv4          5432    10.244.0.22               23h
+n8n-prod-redis-headless-vtbm2   IPv4          6379    10.244.0.20               23h
+n8n-prod-redis-master-hpmml     IPv4          6379    10.244.0.20               23h
+n8n-prod-webhook-hgbnh          IPv4          5678    10.244.0.30,10.244.0.66   23h
+n8n-prod-wlh2b                  IPv4          5678    10.244.0.29,10.244.0.65   23h
+playwright-wrapper-cj7xr        IPv4          8080    10.244.0.97               4h49m

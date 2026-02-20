@@ -60,7 +60,7 @@ playwright-wrapper:
   enabled: true
   image:
     repository: playwright-wrapper
-    tag: 1.0.1-fix-host
+    tag: proxyany-retry-session-not-found-20260218-160448
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -68,7 +68,7 @@ playwright-wrapper:
   env:
     apiTokenSecretName: playwright-wrapper-secret
     apiTokenSecretKey: API_TOKEN
-    targetNamespace: default
+    targetNamespace: n8n-prod
     playwrightPodLabelKey: app
     playwrightPodLabelValue: playwright-ephemeral
     playwrightMcpPort: '8933'

@@ -1,0 +1,2 @@
+NAME       CLASS   HOSTS           ADDRESS   PORTS   AGE
+n8n-prod   nginx   n8n.localhost             80      0s

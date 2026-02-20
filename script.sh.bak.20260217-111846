@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+############################################
+# Config
+############################################
+DEPLOYMENT="playwright-wrapper"
+NAMESPACES=("default" "n8n-prod")
+
+# Mets ici l'image que tu veux réellement (utilise le nom complet si nécessaire)
+IMAGE_DESIRED="playwright-wrapper:1.0.1-fix-host"
+PULLPOLICY_DESIRED="IfNotPresent"  # recommandé sur kind si l'image est déjà présente
+
+BACKUP_DIR="./k8s-backup-debug-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "${BACKUP_DIR}"
+
+############################################
+# Pré-checks
+############################################
+command -v kubectl >/dev/null 2>&1 || { echo "ERREUR: kubectl introuvable"; exit 1; }
+
+############################################
+# Backup des Deployments
+############################################
+echo "==> Backup des Deployments"
+for ns in "${NAMESPACES[@]}"; do
+  if kubectl -n "${ns}" get deploy "${DEPLOYMENT}" >/dev/null 2>&1; then
+    kubectl -n "${ns}" get deploy "${DEPLOYMENT}" -o yaml > "${BACKUP_DIR}/deploy-${DEPLOYMENT}-${ns}.yaml"
+  else
+    echo "WARN: ns=${ns}: deployment absent (skip)"
+  fi
+done
+
+############################################
+# Apply desired image + pullPolicy
+############################################
+echo
+echo "==> Applique image/pullPolicy désirées"
+for ns in "${NAMESPACES[@]}"; do
+  if ! kubectl -n "${ns}" get deploy "${DEPLOYMENT}" >/dev/null 2>&1; then
+    continue
+  fi
+
+  container="$(kubectl -n "${ns}" get deploy "${DEPLOYMENT}" -o jsonpath='{.spec.template.spec.containers[0].name}')"
+  echo "ns=${ns}: container[0]=${container}"
+
+  kubectl -n "${ns}" set image "deployment/${DEPLOYMENT}" "${container}=${IMAGE_DESIRED}"
+
+  existing="$(kubectl -n "${ns}" get deploy "${DEPLOYMENT}" -o jsonpath='{.spec.template.spec.containers[0].imagePullPolicy}' 2>/dev/null || true)"
+  op="add"; [[ -n "${existing}" ]] && op="replace"
+
+  kubectl -n "${ns}" patch deploy "${DEPLOYMENT}" --type='json' -p="[
+    {\"op\":\"${op}\",\"path\":\"/spec/template/spec/containers/0/imagePullPolicy\",\"value\":\"${PULLPOLICY_DESIRED}\"}
+  ]" >/dev/null
+
+  kubectl -n "${ns}" rollout restart "deployment/${DEPLOYMENT}"
+done
+
+############################################
+# Diagnostic rollout / pods
+############################################
+echo
+echo "==> Diagnostic (pourquoi 0/1 updated replicas available)"
+for ns in "${NAMESPACES[@]}"; do
+  if ! kubectl -n "${ns}" get deploy "${DEPLOYMENT}" >/dev/null 2>&1; then
+    continue
+  fi
+
+  echo
+  echo "=============================="
+  echo "Namespace: ${ns}"
+  echo "=============================="
+
+  echo "==> Deployment status"
+  kubectl -n "${ns}" get deploy "${DEPLOYMENT}" -o wide
+
+  echo "==> Rollout status (timeout court, pour ne pas bloquer)"
+  kubectl -n "${ns}" rollout status "deployment/${DEPLOYMENT}" --timeout=20s || true
+
+  echo "==> Pods du deployment (récents en bas)"
+  kubectl -n "${ns}" get pods --sort-by=.metadata.creationTimestamp | grep -E "NAME|${DEPLOYMENT}" || true
+
+  echo "==> Pod le plus récent + état containers + events"
+  POD="$(kubectl -n "${ns}" get pods --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)"
+  if [[ -z "${POD}" ]]; then
+    echo "Aucun pod trouvé"
+    continue
+  fi
+  echo "Pod: ${POD}"
+
+  kubectl -n "${ns}" get pod "${POD}" -o jsonpath='{range .spec.containers[*]}name={.name} image={.image} pullPolicy={.imagePullPolicy}{"\n"}{end}' || true
+  kubectl -n "${ns}" get pod "${POD}" -o jsonpath='{range .status.containerStatuses[*]}name={.name} ready={.ready} restarts={.restartCount} state={.state}{"\n"}{end}' || true
+
+  echo "==> Events (60 dernières lignes)"
+  kubectl -n "${ns}" describe pod "${POD}" | sed -n '/Events:/,$p' | tail -n 60 || true
+
+  echo "==> Logs (si disponibles, 80 dernières lignes)"
+  CNAME="$(kubectl -n "${ns}" get pod "${POD}" -o jsonpath='{.spec.containers[0].name}' 2>/dev/null || true)"
+  if [[ -n "${CNAME}" ]]; then
+    kubectl -n "${ns}" logs "${POD}" -c "${CNAME}" --tail=80 2>/dev/null || true
+  fi
+done
+
+echo
+echo "✅ Fin du diagnostic. Regarde la section Events: c’est là que la cause exacte apparaît (pull, volume, probe, crash, scheduling...)."
+

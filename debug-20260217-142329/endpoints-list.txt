@@ -1,0 +1,8 @@
+NAME                      ENDPOINTS          AGE
+n8n-prod                  10.244.0.29:5678   23h
+n8n-prod-postgresql       10.244.0.22:5432   23h
+n8n-prod-postgresql-hl    10.244.0.22:5432   23h
+n8n-prod-redis-headless   10.244.0.20:6379   23h
+n8n-prod-redis-master     10.244.0.20:6379   23h
+n8n-prod-webhook          10.244.0.30:5678   23h
+playwright-wrapper        10.244.0.97:8080   4h49m

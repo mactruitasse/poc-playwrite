@@ -1,0 +1,27 @@
+✅ OK: aucune auto-invocation exécutable détectée.
+==> Extrait (25 premières lignes) :
+     1	#!/usr/bin/env bash
+     2	set -euo pipefail
+     3	
+     4	############################################
+     5	# Config
+     6	############################################
+     7	DEPLOYMENT="playwright-wrapper"
+     8	NAMESPACES=("default" "n8n-prod")
+     9	
+    10	# Mets ici l'image que tu veux réellement (utilise le nom complet si nécessaire)
+    11	IMAGE_DESIRED="playwright-wrapper:1.0.1-fix-host"
+    12	PULLPOLICY_DESIRED="IfNotPresent"  # recommandé sur kind si l'image est déjà présente
+    13	
+    14	BACKUP_DIR="./k8s-backup-debug-$(date +%Y%m%d-%H%M%S)"
+    15	mkdir -p "${BACKUP_DIR}"
+    16	
+    17	############################################
+    18	# Pré-checks
+    19	############################################
+    20	command -v kubectl >/dev/null 2>&1 || { echo "ERREUR: kubectl introuvable"; exit 1; }
+    21	
+    22	############################################
+    23	# Backup des Deployments
+    24	############################################
+    25	echo "==> Backup des Deployments"

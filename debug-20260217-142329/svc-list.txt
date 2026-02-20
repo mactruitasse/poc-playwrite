@@ -1,0 +1,8 @@
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE     SELECTOR
+n8n-prod                  ClusterIP   10.96.184.105   <none>        5678/TCP   23h     app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n
+n8n-prod-postgresql       ClusterIP   10.96.183.101   <none>        5432/TCP   23h     app.kubernetes.io/component=primary,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=postgresql
+n8n-prod-postgresql-hl    ClusterIP   None            <none>        5432/TCP   23h     app.kubernetes.io/component=primary,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=postgresql
+n8n-prod-redis-headless   ClusterIP   None            <none>        6379/TCP   23h     app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=redis
+n8n-prod-redis-master     ClusterIP   10.96.164.94    <none>        6379/TCP   23h     app.kubernetes.io/component=master,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=redis
+n8n-prod-webhook          ClusterIP   10.96.200.130   <none>        5678/TCP   23h     app.kubernetes.io/component=webhook,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n-webhook
+playwright-wrapper        ClusterIP   10.96.57.253    <none>        8080/TCP   4h49m   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper

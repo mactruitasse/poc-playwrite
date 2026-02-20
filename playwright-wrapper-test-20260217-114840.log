@@ -1,0 +1,22 @@
+==> Contexte kubectl
+kind-pw
+
+==> Wrapper: http://playwright-wrapper.default.svc:8080
+
+==> Pods wrapper
+playwright-wrapper-6c4dffb6c9-9sgp5   1/1     Running            0             17m    10.244.0.96   pw-control-plane   <none>           <none>
+
+==> Service + endpoints wrapper
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+playwright-wrapper   ClusterIP   10.96.249.44   <none>        8080/TCP   19h   app.kubernetes.io/instance=n8n,app.kubernetes.io/name=playwright-wrapper
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                 ENDPOINTS          AGE
+playwright-wrapper   10.244.0.96:8080   19h
+
+==> API_TOKEN récupéré (non affiché)
+
+==> (1) POST /sessions
+pod/curltest-20260217-114840 condition met
+{"sessionId":"b1309498b0c5069e","namespace":"default","podName":"pw-b1309498b0c5069e","serviceName":"pw-svc-b1309498b0c5069e","targetBase":"http://pw-svc-b1309498b0c5069e.default.svc.cluster.local:8933","baseUrl":"/sessions/b1309498b0c5069e"}
+HTTP_CODE=200
+ERREUR: impossible d'extraire 'id' depuis la réponse.

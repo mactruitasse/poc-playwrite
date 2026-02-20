@@ -1,0 +1,2 @@
+NAME                                      READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES
+ingress-nginx-controller-589b66c8-67xdl   1/1     Running   0          24h   10.244.0.7   pw-control-plane   <none>           <none>

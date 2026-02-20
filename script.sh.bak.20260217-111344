@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+############################################
+# Config
+############################################
+FILE="./script.sh"
+
+############################################
+# Sauvegarde
+############################################
+TS="$(date +%Y%m%d-%H%M%S)"
+cp -a "${FILE}" "${FILE}.bak.${TS}"
+
+############################################
+# Nettoyage: retire BOM + caractères avant #! si présents
+############################################
+# 1) enlever BOM UTF-8 éventuel
+sed -i '1s/^\xEF\xBB\xBF//' "${FILE}"
+
+# 2) si la 1ère ligne ne commence pas par #!, remplace-la par un shebang propre
+FIRST_LINE="$(head -n 1 "${FILE}" || true)"
+if [[ "${FIRST_LINE}" != '#!'* ]]; then
+  # supprime la 1ère ligne et injecte un shebang bash
+  tail -n +2 "${FILE}" > "${FILE}.tmp"
+  printf '%s\n' '#!/usr/bin/env bash' > "${FILE}"
+  cat "${FILE}.tmp" >> "${FILE}"
+  rm -f "${FILE}.tmp"
+fi
+
+############################################
+# Forcer fins de ligne Unix (au cas où)
+############################################
+# retire CRLF
+sed -i 's/\r$//' "${FILE}"
+
+############################################
+# Droits + vérif
+############################################
+chmod +x "${FILE}"
+
+echo "==> Shebang actuel:"
+head -n 1 "${FILE}"
+
+echo "==> Vérif interpréteur bash dispo:"
+command -v bash
+
+echo "==> Exécution via bash (pour éviter /bin/sh):"
+bash "${FILE}"

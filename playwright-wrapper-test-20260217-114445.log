@@ -1,0 +1,43 @@
+==> Contexte kubectl
+kind-pw
+
+==> Vérif pods wrapper (ns=default)
+playwright-wrapper-6c4dffb6c9-9sgp5   1/1     Running            0             13m    10.244.0.96   pw-control-plane   <none>           <none>
+
+==> Vérif Service + Endpoints wrapper
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+playwright-wrapper   ClusterIP   10.96.249.44   <none>        8080/TCP   19h   app.kubernetes.io/instance=n8n,app.kubernetes.io/name=playwright-wrapper
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                 ENDPOINTS          AGE
+playwright-wrapper   10.244.0.96:8080   19h
+
+==> Vérif pods n8n (ns=n8n-prod)
+n8n-prod-9c55b445d-f8z2w            1/1     Running            0          20h   10.244.0.29   pw-control-plane   <none>           <none>
+n8n-prod-c945f7c6f-bfjqg            0/1     ImagePullBackOff   0          89m   10.244.0.65   pw-control-plane   <none>           <none>
+n8n-prod-postgresql-0               1/1     Running            0          21h   10.244.0.22   pw-control-plane   <none>           <none>
+n8n-prod-redis-master-0             1/1     Running            0          21h   10.244.0.20   pw-control-plane   <none>           <none>
+n8n-prod-webhook-7b8644d8b5-gwrxc   0/1     ImagePullBackOff   0          89m   10.244.0.66   pw-control-plane   <none>           <none>
+n8n-prod-webhook-8cf88cd4b-nlg2c    1/1     Running            0          20h   10.244.0.30   pw-control-plane   <none>           <none>
+n8n-prod-worker-7dcc77d9c8-tq6kf    1/1     Running            0          20h   10.244.0.26   pw-control-plane   <none>           <none>
+n8n-prod-worker-c94d9949c-tcmmf     0/1     ImagePullBackOff   0          89m   10.244.0.67   pw-control-plane   <none>           <none>
+
+==> Test depuis un pod curl dans le namespace n8n (même réseau/service discovery que n8n)
+Wrapper base URL: http://playwright-wrapper.default.svc:8080
+MCP_MODE=mcp
+
+==> (1) POST /sessions
+✅ Session créée: SID=pod "curltest-20260217-114445" deleted
+
+==> (2) Appel MCP sur la session
+--- GET http://playwright-wrapper.default.svc:8080/sessions/pod "curltest-20260217-114445" deleted/mcp (headers only, 10s max) ---
+curl: (3) URL rejected: Malformed input to a URL function
+
+--- POST ping JSON-RPC (si supporté) ---
+curl: (3) URL rejected: Malformed input to a URL function
+pod "curlmcp-20260217-114445" deleted
+
+==> Résumé
+ - Si (1) a créé un SID => routage Service OK + auth OK
+ - Si (2) retourne un 200/stream ou une réponse JSON-RPC => MCP OK
+Log: ./playwright-wrapper-test-20260217-114445.log
+✅ Fin
