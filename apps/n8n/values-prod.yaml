@@ -61,7 +61,7 @@ playwright-wrapper:
   enabled: true
   image:
     repository: playwright-wrapper
-    tag: 1.0.1-fix-sse-remoteprotocol-20260223-090523
+    tag: 1.0.1-fix-sse-remoteprotocol-20260223-105426
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
