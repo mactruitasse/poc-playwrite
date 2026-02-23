@@ -1,0 +1,7 @@
+
+--- 2) tools/call browser_navigate via WRAPPER ---
+
+--- 3) Résumé HTTP codes ---
+tools/list:
+navigate :
+pod "curlwrap-1771405949" deleted

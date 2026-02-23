@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: "2026-02-17T22:29:13Z"
+  generation: 1
+  labels:
+    app: pw
+    sid: cfa20bbf48b4d847
+  name: pw-cfa20bbf48b4d847
+  namespace: n8n-prod
+  resourceVersion: "94514"
+  uid: 849b2f2f-51b4-4590-b6ae-1948d3cb49a6
+spec:
+  containers:
+  - args:
+    - cli.js
+    - --headless
+    - --browser
+    - chromium
+    - --no-sandbox
+    - --allowed-hosts
+    - '*'
+    - --host
+    - 0.0.0.0
+    - --port
+    - "8933"
+    - --shared-browser-context
+    command:
+    - node
+    image: mcr.microsoft.com/playwright/mcp:latest
+    imagePullPolicy: IfNotPresent
+    name: playwright
+    ports:
+    - containerPort: 8933
+      protocol: TCP
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      readOnlyRootFilesystem: false
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-7bktb
+      readOnly: true
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  nodeName: pw-control-plane
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Never
+  schedulerName: default-scheduler
+  securityContext:
+    fsGroup: 1000
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: kube-api-access-7bktb
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-17T22:29:14Z"
+    observedGeneration: 1
+    status: "True"
+    type: PodReadyToStartContainers
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-17T22:29:13Z"
+    observedGeneration: 1
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-17T22:29:14Z"
+    observedGeneration: 1
+    status: "True"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-17T22:29:14Z"
+    observedGeneration: 1
+    status: "True"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-17T22:29:13Z"
+    observedGeneration: 1
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: containerd://d6a611ae9a244117491ea556db31359a5e93ff26bdee12485bce16b2b81535ca
+    image: mcr.microsoft.com/playwright/mcp:latest
+    imageID: mcr.microsoft.com/playwright/mcp@sha256:a9d607e571d70954acc36de7a45e7f424a94cebdfba973b1f404435108c60f3f
+    lastState: {}
+    name: playwright
+    ready: true
+    resources: {}
+    restartCount: 0
+    started: true
+    state:
+      running:
+        startedAt: "2026-02-17T22:29:14Z"
+    user:
+      linux:
+        gid: 1000
+        supplementalGroups:
+        - 1000
+        uid: 1000
+    volumeMounts:
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-7bktb
+      readOnly: true
+      recursiveReadOnly: Disabled
+  hostIP: 172.19.0.3
+  hostIPs:
+  - ip: 172.19.0.3
+  observedGeneration: 1
+  phase: Running
+  podIP: 10.244.0.43
+  podIPs:
+  - ip: 10.244.0.43
+  qosClass: BestEffort
+  startTime: "2026-02-17T22:29:13Z"

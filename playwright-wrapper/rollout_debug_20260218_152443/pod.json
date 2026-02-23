@@ -1,0 +1,325 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/restartedAt": "2026-02-18T15:19:06+01:00"
+        },
+        "creationTimestamp": "2026-02-18T14:19:06Z",
+        "generateName": "playwright-wrapper-766688565c-",
+        "generation": 1,
+        "labels": {
+            "app.kubernetes.io/instance": "n8n-prod",
+            "app.kubernetes.io/name": "playwright-wrapper",
+            "pod-template-hash": "766688565c"
+        },
+        "name": "playwright-wrapper-766688565c-9frkj",
+        "namespace": "n8n-prod",
+        "ownerReferences": [
+            {
+                "apiVersion": "apps/v1",
+                "blockOwnerDeletion": true,
+                "controller": true,
+                "kind": "ReplicaSet",
+                "name": "playwright-wrapper-766688565c",
+                "uid": "043ef1d4-f4e9-430c-b074-bfe2678c9a96"
+            }
+        ],
+        "resourceVersion": "174086",
+        "uid": "3b89af14-a571-4842-9f6d-3b1fdd8f0c57"
+    },
+    "spec": {
+        "containers": [
+            {
+                "env": [
+                    {
+                        "name": "API_TOKEN",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "key": "API_TOKEN",
+                                "name": "playwright-wrapper-secret"
+                            }
+                        }
+                    },
+                    {
+                        "name": "TARGET_NAMESPACE",
+                        "value": "n8n-prod"
+                    },
+                    {
+                        "name": "PW_POD_LABEL_KEY",
+                        "value": "app"
+                    },
+                    {
+                        "name": "PW_POD_LABEL_VALUE",
+                        "value": "playwright-ephemeral"
+                    },
+                    {
+                        "name": "PW_MCP_PORT",
+                        "value": "8933"
+                    },
+                    {
+                        "name": "PYTHONUNBUFFERED",
+                        "value": "1"
+                    },
+                    {
+                        "name": "PLAYWRIGHT_COMMAND",
+                        "value": "sh"
+                    },
+                    {
+                        "name": "PLAYWRIGHT_ARGS",
+                        "value": "-lc ulimit -n 65535 \u0026\u0026 exec node cli.js --headless --browser chromium --no-sandbox --allowed-hosts localhost,127.0.0.1,0.0.0.0 --host 0.0.0.0 --port 8933 --shared-browser-context"
+                    },
+                    {
+                        "name": "MCP_AUTO_INIT",
+                        "value": "true"
+                    },
+                    {
+                        "name": "UPSTREAM_HOST_HEADER",
+                        "value": "localhost"
+                    }
+                ],
+                "image": "playwright-wrapper:sse-propagate-upstream-20260218-151850",
+                "imagePullPolicy": "IfNotPresent",
+                "livenessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": "http",
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 5,
+                    "periodSeconds": 20,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 1
+                },
+                "name": "wrapper",
+                "ports": [
+                    {
+                        "containerPort": 8080,
+                        "name": "http",
+                        "protocol": "TCP"
+                    }
+                ],
+                "readinessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": "http",
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 2,
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 1
+                },
+                "resources": {},
+                "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                        "drop": [
+                            "ALL"
+                        ]
+                    },
+                    "readOnlyRootFilesystem": true,
+                    "runAsGroup": 10001,
+                    "runAsNonRoot": true,
+                    "runAsUser": 10001
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/tmp",
+                        "name": "tmp"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-rc2hr",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "pw-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+            "runAsNonRoot": true,
+            "seccompProfile": {
+                "type": "RuntimeDefault"
+            }
+        },
+        "serviceAccount": "playwright-wrapper",
+        "serviceAccountName": "playwright-wrapper",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            }
+        ],
+        "volumes": [
+            {
+                "emptyDir": {},
+                "name": "tmp"
+            },
+            {
+                "name": "kube-api-access-rc2hr",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                        {
+                            "serviceAccountToken": {
+                                "expirationSeconds": 3607,
+                                "path": "token"
+                            }
+                        },
+                        {
+                            "configMap": {
+                                "items": [
+                                    {
+                                        "key": "ca.crt",
+                                        "path": "ca.crt"
+                                    }
+                                ],
+                                "name": "kube-root-ca.crt"
+                            }
+                        },
+                        {
+                            "downwardAPI": {
+                                "items": [
+                                    {
+                                        "fieldRef": {
+                                            "apiVersion": "v1",
+                                            "fieldPath": "metadata.namespace"
+                                        },
+                                        "path": "namespace"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "status": {
+        "conditions": [
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-02-18T14:19:08Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "PodReadyToStartContainers"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-02-18T14:19:06Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "Initialized"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-02-18T14:19:06Z",
+                "message": "containers with unready status: [wrapper]",
+                "observedGeneration": 1,
+                "reason": "ContainersNotReady",
+                "status": "False",
+                "type": "Ready"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-02-18T14:19:06Z",
+                "message": "containers with unready status: [wrapper]",
+                "observedGeneration": 1,
+                "reason": "ContainersNotReady",
+                "status": "False",
+                "type": "ContainersReady"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-02-18T14:19:06Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "PodScheduled"
+            }
+        ],
+        "containerStatuses": [
+            {
+                "containerID": "containerd://cfff13046fb2ea7380ee81174e0bd123a3974b0097460e61a2805501c2b17f83",
+                "image": "docker.io/library/playwright-wrapper:sse-propagate-upstream-20260218-151850",
+                "imageID": "sha256:9171c2f0fafff63f6bb1d71df8edd02d6bc23b373a192bc57c0fd874d6d82485",
+                "lastState": {
+                    "terminated": {
+                        "containerID": "containerd://cfff13046fb2ea7380ee81174e0bd123a3974b0097460e61a2805501c2b17f83",
+                        "exitCode": 1,
+                        "finishedAt": "2026-02-18T14:22:08Z",
+                        "reason": "Error",
+                        "startedAt": "2026-02-18T14:22:07Z"
+                    }
+                },
+                "name": "wrapper",
+                "ready": false,
+                "resources": {},
+                "restartCount": 5,
+                "started": false,
+                "state": {
+                    "waiting": {
+                        "message": "back-off 2m40s restarting failed container=wrapper pod=playwright-wrapper-766688565c-9frkj_n8n-prod(3b89af14-a571-4842-9f6d-3b1fdd8f0c57)",
+                        "reason": "CrashLoopBackOff"
+                    }
+                },
+                "user": {
+                    "linux": {
+                        "gid": 10001,
+                        "supplementalGroups": [
+                            10001
+                        ],
+                        "uid": 10001
+                    }
+                },
+                "volumeMounts": [
+                    {
+                        "mountPath": "/tmp",
+                        "name": "tmp"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-rc2hr",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    }
+                ]
+            }
+        ],
+        "hostIP": "172.19.0.3",
+        "hostIPs": [
+            {
+                "ip": "172.19.0.3"
+            }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.0.196",
+        "podIPs": [
+            {
+                "ip": "10.244.0.196"
+            }
+        ],
+        "qosClass": "BestEffort",
+        "startTime": "2026-02-18T14:19:06Z"
+    }
+}

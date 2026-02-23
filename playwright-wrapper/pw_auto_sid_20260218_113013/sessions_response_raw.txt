@@ -1,0 +1,4 @@
+If you don't see a command prompt, try pressing enter.
+curl: (28) Operation timed out after 60001 milliseconds with 0 bytes received
+pod "curltest-sessions-1771410616" deleted
+pod n8n-prod/curltest-sessions-1771410616 terminated (Error)

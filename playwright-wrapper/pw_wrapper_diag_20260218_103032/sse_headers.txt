@@ -1,0 +1,3 @@
+If you don't see a command prompt, try pressing enter.
+curl: (28) Operation timed out after 10002 milliseconds with 0 bytes received
+pod "curltest-sse-headers" deleted

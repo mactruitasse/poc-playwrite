@@ -1,0 +1,98 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2026-02-17T20:17:15Z"
+    labels:
+      app: pw
+      sid: 32e67cc9308e113f
+    name: pw-32e67cc9308e113f
+    namespace: n8n-prod
+    resourceVersion: "81367"
+    uid: a5d6a984-e11e-4bdf-8fec-8cc0d18b3bb4
+  spec:
+    clusterIP: 10.96.164.91
+    clusterIPs:
+    - 10.96.164.91
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8933
+      protocol: TCP
+      targetPort: 8933
+    selector:
+      app: pw
+      sid: 32e67cc9308e113f
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2026-02-17T20:24:53Z"
+    labels:
+      app: pw
+      sid: 481624059c376af7
+    name: pw-481624059c376af7
+    namespace: n8n-prod
+    resourceVersion: "82161"
+    uid: 2525ebf7-20a3-4045-b701-417d73eb78f3
+  spec:
+    clusterIP: 10.96.47.201
+    clusterIPs:
+    - 10.96.47.201
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8933
+      protocol: TCP
+      targetPort: 8933
+    selector:
+      app: pw
+      sid: 481624059c376af7
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2026-02-17T20:07:07Z"
+    labels:
+      app: pw
+      sid: f32f5dbdd9570c9d
+    name: pw-f32f5dbdd9570c9d
+    namespace: n8n-prod
+    resourceVersion: "80329"
+    uid: ab60de19-dc1a-49cc-b8a7-204934bb2a92
+  spec:
+    clusterIP: 10.96.191.8
+    clusterIPs:
+    - 10.96.191.8
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8933
+      protocol: TCP
+      targetPort: 8933
+    selector:
+      app: pw
+      sid: f32f5dbdd9570c9d
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+kind: List
+metadata:
+  resourceVersion: ""

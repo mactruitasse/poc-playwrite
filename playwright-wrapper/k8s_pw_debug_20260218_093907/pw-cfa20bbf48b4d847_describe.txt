@@ -1,0 +1,62 @@
+Name:             pw-cfa20bbf48b4d847
+Namespace:        n8n-prod
+Priority:         0
+Service Account:  default
+Node:             pw-control-plane/172.19.0.3
+Start Time:       Tue, 17 Feb 2026 23:29:13 +0100
+Labels:           app=pw
+                  sid=cfa20bbf48b4d847
+Annotations:      <none>
+Status:           Running
+IP:               10.244.0.43
+IPs:
+  IP:  10.244.0.43
+Containers:
+  playwright:
+    Container ID:    containerd://d6a611ae9a244117491ea556db31359a5e93ff26bdee12485bce16b2b81535ca
+    Image:           mcr.microsoft.com/playwright/mcp:latest
+    Image ID:        mcr.microsoft.com/playwright/mcp@sha256:a9d607e571d70954acc36de7a45e7f424a94cebdfba973b1f404435108c60f3f
+    Port:            8933/TCP
+    Host Port:       0/TCP
+    SeccompProfile:  RuntimeDefault
+    Command:
+      node
+    Args:
+      cli.js
+      --headless
+      --browser
+      chromium
+      --no-sandbox
+      --allowed-hosts
+      *
+      --host
+      0.0.0.0
+      --port
+      8933
+      --shared-browser-context
+    State:          Running
+      Started:      Tue, 17 Feb 2026 23:29:14 +0100
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7bktb (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-7bktb:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:                      <none>

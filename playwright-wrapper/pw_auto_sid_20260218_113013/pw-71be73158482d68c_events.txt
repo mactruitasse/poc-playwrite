@@ -1,0 +1,7 @@
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  61s   default-scheduler  Successfully assigned n8n-prod/pw-71be73158482d68c to pw-control-plane
+  Normal  Pulled     62s   kubelet            Container image "mcr.microsoft.com/playwright/mcp:latest" already present on machine and can be accessed by the pod
+  Normal  Created    62s   kubelet            Container created
+  Normal  Started    62s   kubelet            Container started

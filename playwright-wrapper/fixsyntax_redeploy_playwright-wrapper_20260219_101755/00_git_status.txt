@@ -1,0 +1,4 @@
+### CMD: git status
+### DATE: 2026-02-19T10:17:55+01:00
+
+fatal: ni ceci ni aucun de ses répertoires parents n'est un dépôt git : .git

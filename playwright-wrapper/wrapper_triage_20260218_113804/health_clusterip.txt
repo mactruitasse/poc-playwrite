@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+date: Wed, 18 Feb 2026 10:38:08 GMT
+server: uvicorn
+content-length: 11
+content-type: application/json
+
+{"ok":true}pod "curltest-cip-1771411087" deleted

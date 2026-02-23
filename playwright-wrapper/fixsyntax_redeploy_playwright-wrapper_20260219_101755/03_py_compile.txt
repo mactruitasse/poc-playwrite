@@ -1,0 +1,7 @@
+### CMD: python3 -m py_compile /home/aconte/docker/playwright-wrapper/app/main.py
+### DATE: 2026-02-19T10:17:55+01:00
+
+  File "/home/aconte/docker/playwright-wrapper/app/main.py", line 166
+    else:
+    ^^^^
+SyntaxError: invalid syntax

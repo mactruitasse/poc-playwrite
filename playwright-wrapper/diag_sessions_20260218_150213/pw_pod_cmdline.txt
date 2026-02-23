@@ -1,0 +1,1 @@
+node cli.js --headless --browser chromium --no-sandbox --allowed-hosts cli.js node_modules package.json --host 0.0.0.0 --port 8933 --shared-browser-context 

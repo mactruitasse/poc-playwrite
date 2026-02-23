@@ -1,0 +1,36 @@
+NAMESPACE            NAME                                                READY   STATUS             RESTARTS       AGE    IP             NODE               NOMINATED NODE   READINESS GATES
+argocd               argocd-application-controller-0                     1/1     Running            0              2d2h   10.244.0.15    pw-control-plane   <none>           <none>
+argocd               argocd-applicationset-controller-595d4f9865-2lj6b   1/1     Running            0              2d2h   10.244.0.10    pw-control-plane   <none>           <none>
+argocd               argocd-dex-server-5cc778c49f-7hf28                  1/1     Running            0              2d2h   10.244.0.12    pw-control-plane   <none>           <none>
+argocd               argocd-notifications-controller-59d6c84f6c-xqkwf    1/1     Running            0              2d2h   10.244.0.11    pw-control-plane   <none>           <none>
+argocd               argocd-redis-699d8569f-m9s2k                        1/1     Running            0              2d2h   10.244.0.9     pw-control-plane   <none>           <none>
+argocd               argocd-repo-server-85c54848c5-crqhj                 1/1     Running            0              2d2h   10.244.0.14    pw-control-plane   <none>           <none>
+argocd               argocd-server-64bb65854c-pnc45                      1/1     Running            0              2d2h   10.244.0.16    pw-control-plane   <none>           <none>
+ingress-nginx        ingress-nginx-controller-589b66c8-67xdl             1/1     Running            0              2d2h   10.244.0.7     pw-control-plane   <none>           <none>
+kube-system          coredns-7d764666f9-djk75                            1/1     Running            0              2d2h   10.244.0.4     pw-control-plane   <none>           <none>
+kube-system          coredns-7d764666f9-phlrt                            1/1     Running            0              2d2h   10.244.0.2     pw-control-plane   <none>           <none>
+kube-system          etcd-pw-control-plane                               1/1     Running            0              2d2h   172.19.0.3     pw-control-plane   <none>           <none>
+kube-system          kindnet-n5td5                                       1/1     Running            0              2d2h   172.19.0.3     pw-control-plane   <none>           <none>
+kube-system          kube-apiserver-pw-control-plane                     1/1     Running            2 (2d1h ago)   2d2h   172.19.0.3     pw-control-plane   <none>           <none>
+kube-system          kube-controller-manager-pw-control-plane            1/1     Running            11 (31h ago)   2d2h   172.19.0.3     pw-control-plane   <none>           <none>
+kube-system          kube-proxy-9cd5h                                    1/1     Running            0              2d2h   172.19.0.3     pw-control-plane   <none>           <none>
+kube-system          kube-scheduler-pw-control-plane                     1/1     Running            10 (31h ago)   2d2h   172.19.0.3     pw-control-plane   <none>           <none>
+local-path-storage   local-path-provisioner-67b8995b4b-2jwhh             1/1     Running            0              2d2h   10.244.0.3     pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-9c55b445d-f8z2w                            1/1     Running            0              2d1h   10.244.0.29    pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-c945f7c6f-vkfm8                            0/1     ImagePullBackOff   0              18h    10.244.0.6     pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-postgresql-0                               1/1     Running            0              2d1h   10.244.0.22    pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-redis-master-0                             1/1     Running            0              2d1h   10.244.0.20    pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-webhook-7b8644d8b5-mvxbz                   0/1     ImagePullBackOff   0              18h    10.244.0.8     pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-webhook-8cf88cd4b-nlg2c                    1/1     Running            0              2d1h   10.244.0.30    pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-worker-7dcc77d9c8-tq6kf                    1/1     Running            0              2d1h   10.244.0.26    pw-control-plane   <none>           <none>
+n8n-prod             n8n-prod-worker-c94d9949c-b6ws5                     0/1     ImagePullBackOff   0              18h    10.244.0.13    pw-control-plane   <none>           <none>
+n8n-prod             playwright-wrapper-669cd78d49-jrdnq                 1/1     Running            0              27m    10.244.0.212   pw-control-plane   <none>           <none>
+n8n-prod             pw-0481ea732939ec2c                                 1/1     Running            0              46m    10.244.0.204   pw-control-plane   <none>           <none>
+n8n-prod             pw-1c37c18730de3bbf                                 1/1     Running            0              20m    10.244.0.218   pw-control-plane   <none>           <none>
+n8n-prod             pw-543f4821b0e6af8b                                 1/1     Running            0              40m    10.244.0.207   pw-control-plane   <none>           <none>
+n8n-prod             pw-631178e3273931d9                                 1/1     Running            0              61m    10.244.0.199   pw-control-plane   <none>           <none>
+n8n-prod             pw-6ae0480b65602b3f                                 1/1     Running            0              17m    10.244.0.221   pw-control-plane   <none>           <none>
+n8n-prod             pw-8635157122a58cf1                                 1/1     Running            0              24m    10.244.0.215   pw-control-plane   <none>           <none>
+n8n-prod             pw-86c6fd36d3c9b911                                 1/1     Running            0              22h    10.244.0.135   pw-control-plane   <none>           <none>
+n8n-prod             pw-e77723c00acb3374                                 1/1     Running            0              77m    10.244.0.194   pw-control-plane   <none>           <none>
+n8n-prod             pw-f07b5bb99f5f8b07                                 1/1     Running            0              17m    10.244.0.224   pw-control-plane   <none>           <none>

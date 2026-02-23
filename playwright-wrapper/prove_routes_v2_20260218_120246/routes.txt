@@ -1,0 +1,5 @@
+/openapi.json	methods=['GET', 'HEAD']	name=openapi
+/docs	methods=['GET', 'HEAD']	name=swagger_ui_html
+/docs/oauth2-redirect	methods=['GET', 'HEAD']	name=swagger_ui_redirect
+/redoc	methods=['GET', 'HEAD']	name=redoc_html
+/health	methods=['GET']	name=health

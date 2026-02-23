@@ -1,0 +1,170 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  annotations:
+    argocd.argoproj.io/tracking-id: n8n-prod:apps/Deployment:n8n-prod/n8n-prod
+    deployment.kubernetes.io/desired-replicas: "1"
+    deployment.kubernetes.io/max-replicas: "2"
+    deployment.kubernetes.io/revision: "5"
+  creationTimestamp: "2026-02-17T09:15:30Z"
+  generation: 3
+  labels:
+    app.kubernetes.io/component: main
+    app.kubernetes.io/instance: n8n-prod
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/part-of: n8n
+    app.kubernetes.io/version: 2.6.3
+    helm.sh/chart: n8n-1.16.28
+    pod-template-hash: c945f7c6f
+  name: n8n-prod-c945f7c6f
+  namespace: n8n-prod
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Deployment
+    name: n8n-prod
+    uid: 6768e544-94c3-4143-a292-333203518184
+  resourceVersion: "84095"
+  uid: 11dd49ab-e563-4bcf-a92b-6a008ae3d44f
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: n8n-prod
+      app.kubernetes.io/name: n8n
+      pod-template-hash: c945f7c6f
+  template:
+    metadata:
+      annotations:
+        checksum/config: 00da31a08f5567ed17392999515623bc4cceacf3bd1e75423077f15a9a7051ac
+        kubectl.kubernetes.io/restartedAt: "2026-02-16T15:03:23+01:00"
+      labels:
+        app.kubernetes.io/component: main
+        app.kubernetes.io/instance: n8n-prod
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: n8n
+        app.kubernetes.io/part-of: n8n
+        app.kubernetes.io/version: 2.6.3
+        helm.sh/chart: n8n-1.16.28
+        pod-template-hash: c945f7c6f
+    spec:
+      containers:
+      - env:
+        - name: N8N_HIRING_BANNER_ENABLED
+          value: "false"
+        - name: NODE_ENV
+          value: production
+        - name: N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS
+          value: "true"
+        - name: N8N_PORT
+          value: "5678"
+        - name: N8N_DEFAULT_LOCALE
+          value: en
+        - name: GENERIC_TIMEZONE
+          value: Europe/Berlin
+        - name: N8N_GRACEFUL_SHUTDOWN_TIMEOUT
+          value: "30"
+        - name: DB_POSTGRESDB_USER
+          value: n8n
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: n8n-prod-postgresql
+              optional: true
+        - name: QUEUE_BULL_REDIS_USERNAME
+          valueFrom:
+            secretKeyRef:
+              key: redis-username
+              name: n8n-prod-redis
+              optional: true
+        - name: QUEUE_BULL_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: redis-password
+              name: n8n-prod-redis
+              optional: true
+        - name: WEBHOOK_URL
+          value: http://n8n.localhost
+        - name: N8N_COMMUNITY_PACKAGES_ENABLED
+          value: "true"
+        - name: N8N_SECURE_COOKIE
+          value: "false"
+        envFrom:
+        - configMapRef:
+            name: n8n-prod-database-configmap
+        - configMapRef:
+            name: n8n-prod-logging-configmap
+        - configMapRef:
+            name: n8n-prod-diagnostics-configmap
+        - configMapRef:
+            name: n8n-prod-version-notifications-configmap
+        - configMapRef:
+            name: n8n-prod-public-api-configmap
+        - configMapRef:
+            name: n8n-prod-queue-configmap
+        - configMapRef:
+            name: n8n-prod-workflow-history-configmap
+        - configMapRef:
+            name: n8n-prod-task-broker-configmap
+        - configMapRef:
+            name: n8n-prod-metrics-configmap
+        - configMapRef:
+            name: n8n-prod-binary-data-configmap
+        - secretRef:
+            name: n8n-prod-encryption-key-secret-v2
+        image: n8n-playwright-local:1.0.1-fix-host
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: n8n-main
+        ports:
+        - containerPort: 5678
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 12
+          httpGet:
+            path: /healthz/readiness
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      serviceAccount: n8n-prod
+      serviceAccountName: n8n-prod
+      terminationGracePeriodSeconds: 30
+status:
+  fullyLabeledReplicas: 1
+  observedGeneration: 3
+  replicas: 1
+  terminatingReplicas: 0

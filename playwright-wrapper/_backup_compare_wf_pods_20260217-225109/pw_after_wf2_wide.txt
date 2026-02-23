@@ -1,0 +1,2 @@
+NAME                  READY   STATUS    RESTARTS   AGE   IP            NODE               NOMINATED NODE   READINESS GATES
+pw-44cee798d125a895   1/1     Running   0          18m   10.244.0.37   pw-control-plane   <none>           <none>

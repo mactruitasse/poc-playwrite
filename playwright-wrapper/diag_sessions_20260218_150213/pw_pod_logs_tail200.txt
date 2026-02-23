@@ -1,0 +1,10 @@
+Listening on http://localhost:8933
+Put this in your client config:
+{
+  "mcpServers": {
+    "playwright": {
+      "url": "http://localhost:8933/mcp"
+    }
+  }
+}
+For legacy SSE transport support, you can use the /sse endpoint instead.

@@ -1,0 +1,16 @@
+HTTP/1.1 200 OK
+date: Wed, 18 Feb 2026 15:15:17 GMT
+server: uvicorn
+cache-control: no-cache
+content-type: text/event-stream
+mcp-session-id: 828e9d13-7d4d-45d7-a03e-cee0014f4aca
+date: Wed, 18 Feb 2026 15:15:17 GMT
+cache-control: no-cache
+connection: keep-alive
+x-accel-buffering: no
+Transfer-Encoding: chunked
+
+event: message
+data: {"result":{"content":[{"type":"text","text":"### Page\n- Page URL: https://example.com/\n- Page Title: Example Domain\n- Console: 1 errors, 0 warnings\n### Snapshot\n```yaml\n- generic [ref=e2]:\n  - heading \"Example Domain\" [level=1] [ref=e3]\n  - paragraph [ref=e4]: This domain is for use in documentation examples without needing permission. Avoid use in operations.\n  - paragraph [ref=e5]:\n    - link \"Learn more\" [ref=e6] [cursor=pointer]:\n      - /url: https://iana.org/domains/example\n```"}]},"jsonrpc":"2.0","id":2}
+
+pod "curltest-snap-20807" deleted

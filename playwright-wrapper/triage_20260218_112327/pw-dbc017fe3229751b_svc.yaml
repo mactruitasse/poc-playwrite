@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2026-02-18T10:23:32Z"
+  labels:
+    app: pw
+    sid: dbc017fe3229751b
+  name: pw-dbc017fe3229751b
+  namespace: n8n-prod
+  resourceVersion: "160069"
+  uid: 9eb5d266-d7c3-4b6e-9f82-adb952c9c0e0
+spec:
+  clusterIP: 10.96.223.201
+  clusterIPs:
+  - 10.96.223.201
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8933
+    protocol: TCP
+    targetPort: 8933
+  selector:
+    app: pw
+    sid: dbc017fe3229751b
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}

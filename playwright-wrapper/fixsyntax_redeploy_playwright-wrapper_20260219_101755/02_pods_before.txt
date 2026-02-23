@@ -1,0 +1,6 @@
+### CMD: kubectl -n n8n-prod get pods -l app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper -o wide
+### DATE: 2026-02-19T10:17:55+01:00
+
+NAME                                  READY   STATUS             RESTARTS        AGE   IP             NODE               NOMINATED NODE   READINESS GATES
+playwright-wrapper-5856ccdd8c-79878   0/1     CrashLoopBackOff   7 (2m52s ago)   13m   10.244.0.238   pw-control-plane   <none>           <none>
+playwright-wrapper-669cd78d49-jrdnq   1/1     Running            0               18h   10.244.0.212   pw-control-plane   <none>           <none>

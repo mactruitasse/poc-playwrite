@@ -1,0 +1,58 @@
+Name:             pw-b2a4c36b727a9f8b
+Namespace:        n8n-prod
+Priority:         0
+Service Account:  default
+Node:             pw-control-plane/172.19.0.3
+Start Time:       Wed, 18 Feb 2026 15:02:14 +0100
+Labels:           app=pw
+                  sid=b2a4c36b727a9f8b
+Annotations:      <none>
+Status:           Running
+IP:               10.244.0.179
+IPs:
+  IP:  10.244.0.179
+Containers:
+  playwright:
+    Container ID:    containerd://352dff67bf8a2dfc836486eb3f33e33c158883e0418e86efe2d457ad21a9bb03
+    Image:           mcr.microsoft.com/playwright/mcp:latest
+    Image ID:        mcr.microsoft.com/playwright/mcp@sha256:a9d607e571d70954acc36de7a45e7f424a94cebdfba973b1f404435108c60f3f
+    Port:            8933/TCP
+    Host Port:       0/TCP
+    SeccompProfile:  RuntimeDefault
+    Command:
+      sh
+    Args:
+      -lc
+      ulimit -n 65535 && exec node cli.js --headless --browser chromium --no-sandbox --allowed-hosts * --host 0.0.0.0 --port 8933 --shared-browser-context
+    State:          Running
+      Started:      Wed, 18 Feb 2026 15:02:15 +0100
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-mkmv4 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-mkmv4:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  4s    default-scheduler  Successfully assigned n8n-prod/pw-b2a4c36b727a9f8b to pw-control-plane
+  Normal  Pulled     4s    kubelet            Container image "mcr.microsoft.com/playwright/mcp:latest" already present on machine and can be accessed by the pod
+  Normal  Created    4s    kubelet            Container created
+  Normal  Started    4s    kubelet            Container started

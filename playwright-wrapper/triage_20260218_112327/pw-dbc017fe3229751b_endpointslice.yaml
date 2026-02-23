@@ -1,0 +1,45 @@
+apiVersion: v1
+items:
+- addressType: IPv4
+  apiVersion: discovery.k8s.io/v1
+  endpoints:
+  - addresses:
+    - 10.244.0.147
+    conditions:
+      ready: false
+      serving: false
+      terminating: false
+    nodeName: pw-control-plane
+    targetRef:
+      kind: Pod
+      name: pw-dbc017fe3229751b
+      namespace: n8n-prod
+      uid: a7aea4f7-1d01-483b-a575-592cba73491e
+  kind: EndpointSlice
+  metadata:
+    creationTimestamp: "2026-02-18T10:23:32Z"
+    generateName: pw-dbc017fe3229751b-
+    generation: 2
+    labels:
+      app: pw
+      endpointslice.kubernetes.io/managed-by: endpointslice-controller.k8s.io
+      kubernetes.io/service-name: pw-dbc017fe3229751b
+      sid: dbc017fe3229751b
+    name: pw-dbc017fe3229751b-87zmp
+    namespace: n8n-prod
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Service
+      name: pw-dbc017fe3229751b
+      uid: 9eb5d266-d7c3-4b6e-9f82-adb952c9c0e0
+    resourceVersion: "160081"
+    uid: db1a3852-961e-4feb-8d2b-6990dfb82ac3
+  ports:
+  - name: http
+    port: 8933
+    protocol: TCP
+kind: List
+metadata:
+  resourceVersion: ""

@@ -1,0 +1,477 @@
+import asyncio
+import logging
+import os
+import secrets
+import time
+import shlex
+from dataclasses import dataclass, field
+from typing import Dict, Optional, List, Any
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request, Response, Header
+from fastapi.responses import StreamingResponse
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
+
+from app.settings import settings
+
+log = logging.getLogger(__name__)
+
+logger = log  # alias for debug patches
+
+app = FastAPI(title="Playwright Wrapper (Transparent Proxy)", version="1.0.0")
+
+
+
+@app.get("/health")
+async def health():
+    # Used by Kubernetes liveness/readiness probes
+    return {"ok": True}
+
+def _env_bool(name: str, default: bool) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _split_args(s: Optional[str]) -> Optional[List[str]]:
+    if s is None:
+        return None
+    s = s.strip()
+    if not s:
+        return None
+    return shlex.split(s)
+
+
+def _load_kube() -> bool:
+    if os.getenv("KUBE_ENABLED", "true").strip().lower() in ("0", "false", "no"):
+        log.info("Kubernetes disabled via KUBE_ENABLED=false")
+        return False
+
+    in_cluster = bool(os.getenv("KUBERNETES_SERVICE_HOST")) and bool(os.getenv("KUBERNETES_SERVICE_PORT"))
+    try:
+        if in_cluster:
+            config.load_incluster_config()
+            log.info("Loaded in-cluster Kubernetes config")
+        else:
+            config.load_kube_config()
+            log.info("Loaded kubeconfig (out-of-cluster)")
+        return True
+    except Exception as e:
+        log.warning("Failed to load Kubernetes config: %s", e)
+        return False
+
+
+def _fail_fast_token():
+    # Auth disabled: no token to validate.
+    return
+
+
+def _configure_logging():
+    level = (settings.log_level or "INFO").upper()
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+
+@dataclass
+class SessionInfo:
+    session_id: str
+    namespace: str
+    created_at: float = field(default_factory=lambda: time.time())
+    pod_name: Optional[str] = None
+    service_name: Optional[str] = None
+    target_url: Optional[str] = None  # e.g. http://svc:8933
+    last_access: float = field(default_factory=lambda: time.time())
+
+
+SESSIONS: Dict[str, SessionInfo] = {}
+STICKY_SESSION_ID: Optional[str] = None
+STICKY_LOCK = asyncio.Lock()
+
+KUBE_AVAILABLE = _load_kube()
+COREV1 = client.CoreV1Api() if KUBE_AVAILABLE else None
+
+KEEP_FAILED_RESOURCES = _env_bool("KEEP_FAILED_RESOURCES", False)
+
+
+def _get_namespace() -> str:
+    # Prefer explicit TARGET_NAMESPACE env/setting
+    if settings.target_namespace:
+        return settings.target_namespace
+    # fallback: namespace file when running in-cluster
+    ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    if os.path.exists(ns_path):
+        try:
+            return open(ns_path, "r", encoding="utf-8").read().strip()
+        except Exception:
+            pass
+    return "default"
+
+
+def _httpx_timeouts(read_timeout: float) -> httpx.Timeout:
+    # httpx: use None to disable timeouts. Using 0.0 may behave like an immediate timeout.
+    read = None if (read_timeout is None or float(read_timeout) <= 0.0) else float(read_timeout)
+    return httpx.Timeout(
+        connect=settings.http_connect_timeout_seconds,
+        read=read,
+        write=settings.sse_write_timeout_seconds,
+        pool=settings.http_connect_timeout_seconds,
+    )
+
+
+async def _tcp_wait(host: str, port: int, timeout: float) -> None:
+    deadline = time.time() + timeout
+    last_err: Optional[Exception] = None
+    while time.time() < deadline:
+        try:
+            reader, writer = await asyncio.open_connection(host, port)
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return
+        except Exception as e:
+            last_err = e
+            await asyncio.sleep(1.0)
+    raise TimeoutError(f"TCP connect to {host}:{port} timed out after {timeout}s: {last_err!s}")
+
+
+def _playwright_container_spec() -> client.V1Container:
+    cmd = settings.playwright_command
+    args = _split_args(settings.playwright_args)
+    return client.V1Container(
+        name="playwright",
+        image=settings.playwright_image,
+        image_pull_policy="IfNotPresent",
+        command=[cmd] if cmd else None,
+        args=args,
+        ports=[client.V1ContainerPort(container_port=settings.playwright_port)],
+        security_context=None,  # set later
+        volume_mounts=None,  # set later
+    )
+
+
+def _build_security_contexts():
+    container_security_ctx = None
+    pod_security_ctx = None
+
+    if settings.run_as_non_root:
+        container_security_ctx = client.V1SecurityContext(
+            run_as_non_root=True,
+            run_as_user=settings.run_as_user,
+            run_as_group=settings.run_as_group,
+            allow_privilege_escalation=settings.allow_privilege_escalation,
+            read_only_root_filesystem=settings.read_only_root_filesystem,
+        )
+
+        if settings.drop_all_caps:
+            container_security_ctx.capabilities = client.V1Capabilities(drop=["ALL"])
+
+    if settings.fs_group:
+        pod_security_ctx = client.V1PodSecurityContext(fs_group=settings.fs_group)
+
+    if settings.seccomp_runtime_default:
+        # Kubernetes python client uses field `seccomp_profile`
+        if container_security_ctx is None:
+            container_security_ctx = client.V1SecurityContext()
+        container_security_ctx.seccomp_profile = client.V1SeccompProfile(type="RuntimeDefault")
+
+    return container_security_ctx, pod_security_ctx
+
+
+def _pvc_volumes():
+    if not settings.enable_pvc_mount:
+        return None, None
+    vol = client.V1Volume(
+        name="artifacts",
+        persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=settings.pvc_name),
+    )
+    vm = client.V1VolumeMount(name="artifacts", mount_path=settings.pvc_mount_path)
+    return [vol], [vm]
+
+
+def _svc_type() -> str:
+    v = (settings.service_type or "ClusterIP").strip()
+    if v not in ("ClusterIP", "NodePort"):
+        raise HTTPException(status_code=500, detail=f"Unsupported SERVICE_TYPE: {v}")
+    return v
+
+
+def _session_expired(si: SessionInfo) -> bool:
+    ttl = float(settings.session_ttl_minutes) * 60.0
+    return (time.time() - si.last_access) > ttl
+
+
+async def _gc_loop():
+    while True:
+        try:
+            await asyncio.sleep(settings.gc_interval_seconds)
+            expired = [sid for sid, si in list(SESSIONS.items()) if _session_expired(si)]
+            for sid in expired:
+                try:
+                    await delete_session(sid)
+                except Exception as e:
+                    log.warning("GC delete failed for %s: %s", sid, e)
+        except Exception as e:
+            log.warning("GC loop error: %s", e)
+
+
+@app.on_event("startup")
+async def startup():
+    _configure_logging()
+    _fail_fast_token()
+    asyncio.create_task(_gc_loop())
+
+
+async def _create_pod_and_service(session_id: str, namespace: str) -> SessionInfo:
+    assert COREV1 is not None
+
+    pod_name = f"pw-{session_id}"
+    svc_name = f"pw-{session_id}"
+
+    container_security_ctx, pod_security_ctx = _build_security_contexts()
+
+    c = _playwright_container_spec()
+    c.security_context = container_security_ctx
+
+    vols, vms = _pvc_volumes()
+    if vms:
+        c.volume_mounts = vms
+
+    pod = client.V1Pod(
+        metadata=client.V1ObjectMeta(name=pod_name, labels={"app": "pw", "sid": session_id}),
+        spec=client.V1PodSpec(
+            containers=[c],
+            restart_policy="Never",
+            security_context=pod_security_ctx,
+            service_account_name=None,
+            volumes=vols,
+        ),
+    )
+
+    try:
+        COREV1.create_namespaced_pod(namespace=namespace, body=pod)
+        log.info("Created pod %s/%s", namespace, pod_name)
+    except ApiException as e:
+        raise HTTPException(status_code=500, detail=f"K8s error creating pod: {e.reason}")
+
+    svc_ports = [client.V1ServicePort(name="http", port=settings.playwright_port, target_port=settings.playwright_port)]
+    svc_type = _svc_type()
+    svc = client.V1Service(
+        metadata=client.V1ObjectMeta(name=svc_name, labels={"app": "pw", "sid": session_id}),
+        spec=client.V1ServiceSpec(
+            selector={"app": "pw", "sid": session_id},
+            ports=svc_ports,
+            type=svc_type,
+        ),
+    )
+
+    try:
+        COREV1.create_namespaced_service(namespace=namespace, body=svc)
+        log.info("Created service %s/%s type=%s", namespace, svc_name, svc_type)
+    except ApiException as e:
+        if not KEEP_FAILED_RESOURCES:
+            try:
+                COREV1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=f"K8s error creating service: {e.reason}")
+
+    target_url = f"http://{svc_name}.{namespace}.svc:{settings.playwright_port}"
+    si = SessionInfo(session_id=session_id, namespace=namespace, pod_name=pod_name, service_name=svc_name, target_url=target_url)
+
+    # Wait readiness (TCP)
+    try:
+        await _tcp_wait(host=f"{svc_name}.{namespace}.svc", port=settings.playwright_port, timeout=settings.pod_ready_timeout_seconds)
+    except Exception as e:
+        if not KEEP_FAILED_RESOURCES:
+            try:
+                COREV1.delete_namespaced_service(name=svc_name, namespace=namespace)
+            except Exception:
+                pass
+            try:
+                COREV1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+            except Exception:
+                pass
+        raise HTTPException(status_code=504, detail=f"Pod/service not ready: {e!s}")
+
+    return si
+
+
+@app.post("/sessions")
+async def create_session():
+    if not KUBE_AVAILABLE or COREV1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes API not available")
+
+    namespace = _get_namespace()
+    session_id = secrets.token_hex(8)
+
+    si = await _create_pod_and_service(session_id=session_id, namespace=namespace)
+    SESSIONS[session_id] = si
+    return {"sessionId": session_id, "targetUrl": si.target_url}
+
+
+async def _get_or_create_sticky_session_id() -> str:
+    global STICKY_SESSION_ID
+    async with STICKY_LOCK:
+        if STICKY_SESSION_ID and STICKY_SESSION_ID in SESSIONS:
+            return STICKY_SESSION_ID
+        data = await create_session()
+        sid = data.get("sessionId")
+        if not sid:
+            raise HTTPException(status_code=500, detail="Sticky session creation failed: missing sessionId")
+        STICKY_SESSION_ID = sid
+        return sid
+
+
+@app.api_route("/mcp", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+async def mcp_root(request: Request):
+    sid = await _get_or_create_sticky_session_id()
+
+
+# WRAPPER_SSE_PROXY_ROUTES:
+# Playwright MCP legacy SSE transport. Proxy /sse to the sticky session pod.
+@app.get("/sse")
+async def sse_root(request: Request, x_api_token: Optional[str] = Header(default=None)):
+    sid = await _get_or_create_sticky_session_id()
+    return await proxy_any(session_id=sid, path="sse", request=request)
+
+@app.get("/sse/{subpath:path}")
+async def sse_subpath(subpath: str, request: Request, x_api_token: Optional[str] = Header(default=None)):
+    sid = await _get_or_create_sticky_session_id()
+    return await proxy_any(session_id=sid, path=f"sse/{subpath}", request=request)
+
+
+@app.api_route("/mcp/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+async def mcp_subpath(path: str, request: Request):
+    sid = await _get_or_create_sticky_session_id()
+    return await proxy_any(session_id=sid, path=f"mcp/{path}", request=request)
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    if not KUBE_AVAILABLE or COREV1 is None:
+        raise HTTPException(status_code=500, detail="Kubernetes API not available")
+    si = SESSIONS.get(session_id)
+    if not si:
+        return {"ok": True}
+
+    namespace = si.namespace
+    pod_name = si.pod_name
+    svc_name = si.service_name
+
+    # Delete service first
+    if svc_name:
+        try:
+            COREV1.delete_namespaced_service(name=svc_name, namespace=namespace)
+        except ApiException as e:
+            log.warning("K8s delete service error: %s", e)
+
+    if pod_name:
+        try:
+            COREV1.delete_namespaced_pod(name=pod_name, namespace=namespace)
+        except ApiException as e:
+            log.warning("K8s delete pod error: %s", e)
+
+    SESSIONS.pop(session_id, None)
+    global STICKY_SESSION_ID
+    if STICKY_SESSION_ID == session_id:
+        STICKY_SESSION_ID = None
+
+    return {"ok": True}
+
+
+async def proxy_any(session_id: str, path: str, request: Request):
+    si = SESSIONS.get(session_id)
+    if not si or not si.target_url:
+        raise HTTPException(status_code=404, detail="Unknown session")
+
+    si.last_access = time.time()
+
+    # Prepare upstream request
+    upstream = f"{si.target_url.rstrip('/')}/{path.lstrip('/')}"
+    method = request.method.upper()
+    headers = dict(request.headers)
+
+
+
+    # MCP_HOSTFIX2_PATH_BASED:
+    # Upstream Playwright MCP can enforce Host=localhost:8933 and Accept includes text/event-stream.
+    # Apply based on proxy path (mcp / mcp/*), avoiding reliance on target_url attributes.
+    try:
+        if str(path).startswith("mcp") or str(path).startswith("sse"):
+            # Ensure we override host in a way http clients are most likely to honor
+            headers.pop("host", None)
+            headers["Host"] = "localhost:8933"
+            headers["Origin"] = "http://localhost:8933"
+            headers["Accept"] = "application/json, text/event-stream"
+            # Lightweight confirmation in logs (do not dump sensitive headers)
+            try:
+                logger.info("MCP_HOSTFIX2 applied: Host=%s Accept=%s path=%s", headers.get("Host"), headers.get("Accept"), path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # MCP_HEADER_FIX_LOCALHOST_8933:
+    # Upstream MCP can enforce:
+    # - Host must be localhost:8933 (otherwise 403)
+    # - Accept must include BOTH application/json and text/event-stream (otherwise 406)
+    # Apply only when upstream is the Playwright MCP service (port 8933).
+    try:
+        _target = str(si.target_url) if hasattr(si, "target_url") else ""
+        if ":8933" in _target:
+            headers["host"] = "localhost:8933"
+            headers["accept"] = "application/json, text/event-stream"
+    except Exception:
+        pass
+
+    # Remove hop-by-hop headers
+    # NOTE: Playwright MCP/SSE may enforce Host=localhost:8933; keep Host for mcp*/sse*.
+    if str(path).startswith("mcp") or str(path).startswith("sse"):
+        hop_by_hop = ("content-length", "Content-Length", "connection", "Connection")
+    else:
+        hop_by_hop = ("host", "Host", "content-length", "Content-Length", "connection", "Connection")
+    for h in hop_by_hop:
+        headers.pop(h, None)
+
+    body = b""
+    # SSE uses GET; reading request.body() can block and/or raise ClientDisconnect when client closes.
+    if request.method not in ("GET", "HEAD"):
+        body = await request.body()
+    # Stream handling for SSE
+    accept = headers.get("accept", "")
+    is_sse = (request.method.upper() == "GET") and ("text/event-stream" in accept.lower())
+    timeout = _httpx_timeouts(settings.sse_read_timeout_seconds if is_sse else settings.http_default_read_timeout_seconds)
+
+    try:
+        if is_sse:
+            async def _stream():
+                async with httpx.AsyncClient(timeout=timeout) as client_http:
+                    async with client_http.stream(method, upstream, headers=headers, content=body) as r:
+                        async for chunk in r.aiter_bytes():
+                            yield chunk
+
+            return StreamingResponse(
+                _stream(),
+                status_code=200,
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+        else:
+            async with httpx.AsyncClient(timeout=timeout) as client_http:
+                r = await client_http.request(method, upstream, headers=headers, content=body)
+                return Response(content=r.content, status_code=r.status_code, headers=dict(r.headers))
+    except httpx.ConnectTimeout:
+        raise HTTPException(status_code=504, detail="Upstream connect timeout")
+    except httpx.ReadTimeout:
+        raise HTTPException(status_code=504, detail="Upstream read timeout")
+    except httpx.ConnectError as e:
+        raise HTTPException(status_code=502, detail=f"Upstream connect error: {e!s}")
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Upstream HTTP error: {e!s}")

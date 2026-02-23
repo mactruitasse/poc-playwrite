@@ -1,0 +1,2 @@
+NAME                       ADDRESSTYPE   PORTS   ENDPOINTS                 AGE
+playwright-wrapper-cj7xr   IPv4          8080    10.244.0.28,10.244.0.33   13h

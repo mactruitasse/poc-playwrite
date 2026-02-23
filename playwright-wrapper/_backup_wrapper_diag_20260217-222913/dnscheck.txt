@@ -1,0 +1,36 @@
+=== /etc/resolv.conf ===
+search n8n-prod.svc.cluster.local svc.cluster.local cluster.local home
+nameserver 10.96.0.10
+options ndots:5
+
+=== nslookup short ===
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+Name:	playwright-wrapper.n8n-prod.svc.cluster.local
+Address: 10.96.57.253
+
+** server can't find playwright-wrapper.svc.cluster.local: NXDOMAIN
+
+
+** server can't find playwright-wrapper.cluster.local: NXDOMAIN
+
+** server can't find playwright-wrapper.cluster.local: NXDOMAIN
+
+** server can't find playwright-wrapper.svc.cluster.local: NXDOMAIN
+
+** server can't find playwright-wrapper.home: NXDOMAIN
+
+** server can't find playwright-wrapper.home: NXDOMAIN
+
+
+=== nslookup fqdn ===
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+Name:	playwright-wrapper.n8n-prod.svc.cluster.local
+Address: 10.96.57.253
+
+
+
+pod "dnscheck" deleted

@@ -1,0 +1,4 @@
+### CMD: kubectl -n n8n-prod set image deploy/playwright-wrapper wrapper=playwright-wrapper:proxyany-ssepost-fixsyntax3-20260219_102754
+### DATE: 2026-02-19T10:27:59+01:00
+
+deployment.apps/playwright-wrapper image updated

@@ -1,0 +1,47 @@
+apiVersion: v1
+items:
+- addressType: IPv4
+  apiVersion: discovery.k8s.io/v1
+  endpoints:
+  - addresses:
+    - 10.244.0.212
+    conditions:
+      ready: true
+      serving: true
+      terminating: false
+    nodeName: pw-control-plane
+    targetRef:
+      kind: Pod
+      name: playwright-wrapper-669cd78d49-jrdnq
+      namespace: n8n-prod
+      uid: 38423384-ba1f-452d-b778-ac906a19d045
+  kind: EndpointSlice
+  metadata:
+    annotations:
+      endpoints.kubernetes.io/last-change-trigger-time: "2026-02-18T15:05:20Z"
+    creationTimestamp: "2026-02-17T08:33:37Z"
+    generateName: playwright-wrapper-
+    generation: 286
+    labels:
+      app.kubernetes.io/instance: n8n-prod
+      app.kubernetes.io/name: playwright-wrapper
+      endpointslice.kubernetes.io/managed-by: endpointslice-controller.k8s.io
+      kubernetes.io/service-name: playwright-wrapper
+    name: playwright-wrapper-cj7xr
+    namespace: n8n-prod
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Service
+      name: playwright-wrapper
+      uid: 5c9a90f3-f9dc-476d-8aeb-5276c27e148f
+    resourceVersion: "178403"
+    uid: bd8a117b-ce57-474f-ba45-0a003055265e
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+kind: List
+metadata:
+  resourceVersion: ""

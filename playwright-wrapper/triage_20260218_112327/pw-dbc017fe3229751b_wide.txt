@@ -1,0 +1,2 @@
+NAME                  READY   STATUS   RESTARTS   AGE   IP             NODE               NOMINATED NODE   READINESS GATES
+pw-dbc017fe3229751b   0/1     Error    0          16s   10.244.0.147   pw-control-plane   <none>           <none>

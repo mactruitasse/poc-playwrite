@@ -1,0 +1,4 @@
+### CMD: kubectl -n n8n-prod logs playwright-wrapper-598bdc7479-8t8sc -c wrapper --tail=200
+### DATE: 2026-02-19T10:31:00+01:00
+
+Error from server (BadRequest): container "wrapper" in pod "playwright-wrapper-598bdc7479-8t8sc" is waiting to start: trying and failing to pull image

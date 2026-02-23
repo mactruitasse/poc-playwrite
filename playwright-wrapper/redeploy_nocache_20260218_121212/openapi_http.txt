@@ -1,0 +1,1 @@
+pod "curltest-openapi-2507645" deleted

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2026-02-18T10:30:17Z"
+  labels:
+    app: pw
+    sid: 71be73158482d68c
+  name: pw-71be73158482d68c
+  namespace: n8n-prod
+  resourceVersion: "160731"
+  uid: d589a26e-c938-4666-8d83-eedb4bdc1497
+spec:
+  clusterIP: 10.96.152.166
+  clusterIPs:
+  - 10.96.152.166
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8933
+    protocol: TCP
+    targetPort: 8933
+  selector:
+    app: pw
+    sid: 71be73158482d68c
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}

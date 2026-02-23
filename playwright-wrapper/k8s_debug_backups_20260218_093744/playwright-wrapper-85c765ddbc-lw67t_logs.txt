@@ -1,0 +1,90 @@
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     10.244.0.1:58898 - "GET /health HTTP/1.1" 200 OK
+2026-02-18 08:29:56,369 INFO app.main Created pod n8n-prod/pw-16777717f6926b80
+2026-02-18 08:29:56,378 INFO app.main Created service n8n-prod/pw-16777717f6926b80 type=ClusterIP
+INFO:     10.244.0.1:45644 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:45658 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:49516 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:38018 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:38030 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:44230 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39560 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39568 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:58078 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:55128 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:55142 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:56272 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:33732 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:33736 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.29:59108 - "GET /mcp HTTP/1.1" 504 Gateway Timeout
+2026-02-18 08:31:26,704 INFO app.main Created pod n8n-prod/pw-314dca931a24e2a1
+2026-02-18 08:31:26,711 INFO app.main Created service n8n-prod/pw-314dca931a24e2a1 type=ClusterIP
+INFO:     10.244.0.1:52564 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:59246 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:59254 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:57182 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:35662 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:35670 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:54054 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:49894 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:49910 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:46930 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:53104 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:53120 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:33014 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.29:59118 - "GET /mcp HTTP/1.1" 504 Gateway Timeout
+2026-02-18 08:32:57,032 INFO app.main Created pod n8n-prod/pw-e66661bbb7740944
+2026-02-18 08:32:57,038 INFO app.main Created service n8n-prod/pw-e66661bbb7740944 type=ClusterIP
+INFO:     10.244.0.1:52312 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:52328 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39764 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:54944 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:54948 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:51330 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39808 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39824 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:32958 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:42728 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:42734 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:48590 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:41268 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:41280 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.29:59138 - "GET /mcp HTTP/1.1" 504 Gateway Timeout
+2026-02-18 08:34:27,346 INFO app.main Created pod n8n-prod/pw-c5b6d0310d0edfea
+2026-02-18 08:34:27,352 INFO app.main Created service n8n-prod/pw-c5b6d0310d0edfea type=ClusterIP
+INFO:     10.244.0.1:54114 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:57016 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:57030 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:57412 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:33514 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:33516 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:47080 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:35198 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:35206 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39934 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:57546 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:57558 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:46780 - "GET /health HTTP/1.1" 200 OK
+2026-02-18 08:35:57,625 INFO app.main Created pod n8n-prod/pw-6372ab09443fb485
+2026-02-18 08:35:57,632 INFO app.main Created service n8n-prod/pw-6372ab09443fb485 type=ClusterIP
+INFO:     10.244.0.1:44916 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:44922 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:43368 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:41684 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:41692 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:43536 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:37074 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:37076 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:39280 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:50594 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:50596 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:52666 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:43930 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:43946 - "GET /health HTTP/1.1" 200 OK
+2026-02-18 08:37:27,932 INFO app.main Created pod n8n-prod/pw-dd2368d64bfcf2b0
+2026-02-18 08:37:27,938 INFO app.main Created service n8n-prod/pw-dd2368d64bfcf2b0 type=ClusterIP
+INFO:     10.244.0.1:46260 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.244.0.1:59944 - "GET /health HTTP/1.1" 200 OK

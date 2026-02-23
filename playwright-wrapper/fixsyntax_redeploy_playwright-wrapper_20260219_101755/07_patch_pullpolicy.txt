@@ -1,0 +1,6 @@
+### CMD: kubectl -n n8n-prod patch deploy playwright-wrapper --type=json -p=[
+  {"op":"add","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}
+]
+### DATE: 2026-02-19T10:18:01+01:00
+
+deployment.apps/playwright-wrapper patched

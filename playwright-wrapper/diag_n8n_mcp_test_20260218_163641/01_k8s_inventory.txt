@@ -1,0 +1,43 @@
+NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS    IMAGES                                                                SELECTOR
+deployment.apps/n8n-prod             1/1     1            1           2d2h   n8n-main      n8n-playwright-local:1.0.1-fix-host                                   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n
+deployment.apps/n8n-prod-webhook     1/1     1            1           2d2h   n8n-webhook   n8n-playwright-local:1.0.1-fix-host                                   app.kubernetes.io/component=webhook,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n-webhook
+deployment.apps/n8n-prod-worker      1/1     1            1           2d2h   n8n-worker    n8n-playwright-local:1.0.1-fix-host                                   app.kubernetes.io/component=worker,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n-worker
+deployment.apps/playwright-wrapper   1/1     1            1           31h    wrapper       playwright-wrapper:proxyany-retry-session-not-found-20260218-160448   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper
+
+NAME                              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE    SELECTOR
+service/n8n-prod                  ClusterIP   10.96.184.105   <none>        5678/TCP   2d2h   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n
+service/n8n-prod-postgresql       ClusterIP   10.96.183.101   <none>        5432/TCP   2d2h   app.kubernetes.io/component=primary,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=postgresql
+service/n8n-prod-postgresql-hl    ClusterIP   None            <none>        5432/TCP   2d2h   app.kubernetes.io/component=primary,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=postgresql
+service/n8n-prod-redis-headless   ClusterIP   None            <none>        6379/TCP   2d2h   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=redis
+service/n8n-prod-redis-master     ClusterIP   10.96.164.94    <none>        6379/TCP   2d2h   app.kubernetes.io/component=master,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=redis
+service/n8n-prod-webhook          ClusterIP   10.96.200.130   <none>        5678/TCP   2d2h   app.kubernetes.io/component=webhook,app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=n8n-webhook
+service/playwright-wrapper        ClusterIP   10.96.57.253    <none>        8080/TCP   31h    app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper
+service/pw-0481ea732939ec2c       ClusterIP   10.96.137.37    <none>        8933/TCP   50m    app=pw,sid=0481ea732939ec2c
+service/pw-1c37c18730de3bbf       ClusterIP   10.96.87.99     <none>        8933/TCP   24m    app=pw,sid=1c37c18730de3bbf
+service/pw-543f4821b0e6af8b       ClusterIP   10.96.193.212   <none>        8933/TCP   44m    app=pw,sid=543f4821b0e6af8b
+service/pw-631178e3273931d9       ClusterIP   10.96.107.159   <none>        8933/TCP   64m    app=pw,sid=631178e3273931d9
+service/pw-6ae0480b65602b3f       ClusterIP   10.96.202.246   <none>        8933/TCP   21m    app=pw,sid=6ae0480b65602b3f
+service/pw-8635157122a58cf1       ClusterIP   10.96.5.128     <none>        8933/TCP   28m    app=pw,sid=8635157122a58cf1
+service/pw-e77723c00acb3374       ClusterIP   10.96.47.214    <none>        8933/TCP   81m    app=pw,sid=e77723c00acb3374
+service/pw-f07b5bb99f5f8b07       ClusterIP   10.96.142.197   <none>        8933/TCP   20m    app=pw,sid=f07b5bb99f5f8b07
+service/pw-svc-86c6fd36d3c9b911   ClusterIP   10.96.201.226   <none>        8933/TCP   22h    app=playwright-ephemeral,sessionId=86c6fd36d3c9b911
+
+NAME                                      READY   STATUS             RESTARTS   AGE    IP             NODE               NOMINATED NODE   READINESS GATES
+pod/n8n-prod-9c55b445d-f8z2w              1/1     Running            0          2d1h   10.244.0.29    pw-control-plane   <none>           <none>
+pod/n8n-prod-c945f7c6f-vkfm8              0/1     ImagePullBackOff   0          18h    10.244.0.6     pw-control-plane   <none>           <none>
+pod/n8n-prod-postgresql-0                 1/1     Running            0          2d2h   10.244.0.22    pw-control-plane   <none>           <none>
+pod/n8n-prod-redis-master-0               1/1     Running            0          2d2h   10.244.0.20    pw-control-plane   <none>           <none>
+pod/n8n-prod-webhook-7b8644d8b5-mvxbz     0/1     ImagePullBackOff   0          18h    10.244.0.8     pw-control-plane   <none>           <none>
+pod/n8n-prod-webhook-8cf88cd4b-nlg2c      1/1     Running            0          2d1h   10.244.0.30    pw-control-plane   <none>           <none>
+pod/n8n-prod-worker-7dcc77d9c8-tq6kf      1/1     Running            0          2d1h   10.244.0.26    pw-control-plane   <none>           <none>
+pod/n8n-prod-worker-c94d9949c-b6ws5       0/1     ImagePullBackOff   0          18h    10.244.0.13    pw-control-plane   <none>           <none>
+pod/playwright-wrapper-669cd78d49-jrdnq   1/1     Running            0          31m    10.244.0.212   pw-control-plane   <none>           <none>
+pod/pw-0481ea732939ec2c                   1/1     Running            0          50m    10.244.0.204   pw-control-plane   <none>           <none>
+pod/pw-1c37c18730de3bbf                   1/1     Running            0          24m    10.244.0.218   pw-control-plane   <none>           <none>
+pod/pw-543f4821b0e6af8b                   1/1     Running            0          44m    10.244.0.207   pw-control-plane   <none>           <none>
+pod/pw-631178e3273931d9                   1/1     Running            0          64m    10.244.0.199   pw-control-plane   <none>           <none>
+pod/pw-6ae0480b65602b3f                   1/1     Running            0          21m    10.244.0.221   pw-control-plane   <none>           <none>
+pod/pw-8635157122a58cf1                   1/1     Running            0          28m    10.244.0.215   pw-control-plane   <none>           <none>
+pod/pw-86c6fd36d3c9b911                   1/1     Running            0          22h    10.244.0.135   pw-control-plane   <none>           <none>
+pod/pw-e77723c00acb3374                   1/1     Running            0          81m    10.244.0.194   pw-control-plane   <none>           <none>
+pod/pw-f07b5bb99f5f8b07                   1/1     Running            0          20m    10.244.0.224   pw-control-plane   <none>           <none>

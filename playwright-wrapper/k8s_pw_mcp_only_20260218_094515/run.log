@@ -1,0 +1,44 @@
+--- A) GET /mcp (juste pour voir le code) ---
+* Host pw-cfa20bbf48b4d847:8933 was resolved.
+* IPv6: (none)
+* IPv4: 10.96.122.230
+*   Trying 10.96.122.230:8933...
+* Connected to pw-cfa20bbf48b4d847 (10.96.122.230) port 8933
+> GET /mcp HTTP/1.1
+> Host: pw-cfa20bbf48b4d847:8933
+> User-Agent: curl/8.6.0
+> Accept: */*
+> 
+< HTTP/1.1 400 Bad Request
+< Date: Wed, 18 Feb 2026 08:45:16 GMT
+< Connection: keep-alive
+< Keep-Alive: timeout=5
+< Content-Length: 15
+< 
+{ [15 bytes data]
+* Connection #0 to host pw-cfa20bbf48b4d847 left intact
+Invalid request
+--- B) POST /mcp JSON-RPC __ping__ ---
+* Host pw-cfa20bbf48b4d847:8933 was resolved.
+* IPv6: (none)
+* IPv4: 10.96.122.230
+*   Trying 10.96.122.230:8933...
+* Connected to pw-cfa20bbf48b4d847 (10.96.122.230) port 8933
+> POST /mcp HTTP/1.1
+> Host: pw-cfa20bbf48b4d847:8933
+> User-Agent: curl/8.6.0
+> Content-Type: application/json
+> Accept: application/json
+> Content-Length: 56
+> 
+} [56 bytes data]
+< HTTP/1.1 406 Not Acceptable
+< content-type: application/json
+< content-length: 142
+< Date: Wed, 18 Feb 2026 08:45:16 GMT
+< Connection: keep-alive
+< Keep-Alive: timeout=5
+< 
+{ [142 bytes data]
+* Connection #0 to host pw-cfa20bbf48b4d847 left intact
+{"jsonrpc":"2.0","error":{"code":-32000,"message":"Not Acceptable: Client must accept both application/json and text/event-stream"},"id":null}pod "curlmcp-1771404315" deleted

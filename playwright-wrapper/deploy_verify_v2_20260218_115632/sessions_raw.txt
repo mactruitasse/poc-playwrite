@@ -1,0 +1,7 @@
+HTTP/1.1 404 Not Found
+date: Wed, 18 Feb 2026 10:56:38 GMT
+server: uvicorn
+content-length: 22
+content-type: application/json
+
+{"detail":"Not Found"}pod "curltest-sessions-2490953" deleted

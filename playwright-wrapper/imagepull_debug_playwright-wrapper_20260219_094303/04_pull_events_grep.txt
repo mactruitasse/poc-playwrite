@@ -1,0 +1,2 @@
+4:  Normal   BackOff  49s (x581 over 16h)  kubelet  Back-off pulling image "playwright-wrapper:proxyany-ssepost-20260218_171047"
+5:  Warning  Failed   49s (x581 over 16h)  kubelet  Error: ImagePullBackOff

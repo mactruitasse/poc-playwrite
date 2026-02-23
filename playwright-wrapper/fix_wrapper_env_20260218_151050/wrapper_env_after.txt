@@ -1,0 +1,2 @@
+PLAYWRIGHT_COMMAND=sh
+PLAYWRIGHT_ARGS=-lc ulimit -n 65535 && exec node cli.js --headless --browser chromium --no-sandbox --allowed-hosts localhost,127.0.0.1,0.0.0.0 --host 0.0.0.0 --port 8933 --shared-browser-context

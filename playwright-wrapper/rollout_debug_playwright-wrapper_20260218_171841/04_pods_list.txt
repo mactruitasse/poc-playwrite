@@ -1,0 +1,4 @@
+### CMD: kubectl -n default get pods -l app=playwright-wrapper -o wide
+### DATE: 2026-02-18T17:18:42+01:00
+
+No resources found in default namespace.

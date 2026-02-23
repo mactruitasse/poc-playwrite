@@ -1,0 +1,78 @@
+Name:             playwright-wrapper-766688565c-9frkj
+Namespace:        n8n-prod
+Priority:         0
+Service Account:  playwright-wrapper
+Node:             pw-control-plane/172.19.0.3
+Start Time:       Wed, 18 Feb 2026 15:19:06 +0100
+Labels:           app.kubernetes.io/instance=n8n-prod
+                  app.kubernetes.io/name=playwright-wrapper
+                  pod-template-hash=766688565c
+Annotations:      kubectl.kubernetes.io/restartedAt: 2026-02-18T15:19:06+01:00
+Status:           Running
+SeccompProfile:   RuntimeDefault
+IP:               10.244.0.196
+IPs:
+  IP:           10.244.0.196
+Controlled By:  ReplicaSet/playwright-wrapper-766688565c
+Containers:
+  wrapper:
+    Container ID:   containerd://cfff13046fb2ea7380ee81174e0bd123a3974b0097460e61a2805501c2b17f83
+    Image:          playwright-wrapper:sse-propagate-upstream-20260218-151850
+    Image ID:       sha256:9171c2f0fafff63f6bb1d71df8edd02d6bc23b373a192bc57c0fd874d6d82485
+    Port:           8080/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Wed, 18 Feb 2026 15:22:07 +0100
+      Finished:     Wed, 18 Feb 2026 15:22:08 +0100
+    Ready:          False
+    Restart Count:  5
+    Liveness:       http-get http://:http/health delay=5s timeout=1s period=20s #success=1 #failure=3
+    Readiness:      http-get http://:http/health delay=2s timeout=1s period=10s #success=1 #failure=3
+    Environment:
+      API_TOKEN:             <set to the key 'API_TOKEN' in secret 'playwright-wrapper-secret'>  Optional: false
+      TARGET_NAMESPACE:      n8n-prod
+      PW_POD_LABEL_KEY:      app
+      PW_POD_LABEL_VALUE:    playwright-ephemeral
+      PW_MCP_PORT:           8933
+      PYTHONUNBUFFERED:      1
+      PLAYWRIGHT_COMMAND:    sh
+      PLAYWRIGHT_ARGS:       -lc ulimit -n 65535 && exec node cli.js --headless --browser chromium --no-sandbox --allowed-hosts localhost,127.0.0.1,0.0.0.0 --host 0.0.0.0 --port 8933 --shared-browser-context
+      MCP_AUTO_INIT:         true
+      UPSTREAM_HOST_HEADER:  localhost
+    Mounts:
+      /tmp from tmp (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-rc2hr (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  tmp:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  kube-api-access-rc2hr:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                    From               Message
+  ----     ------     ----                   ----               -------
+  Normal   Scheduled  5m37s                  default-scheduler  Successfully assigned n8n-prod/playwright-wrapper-766688565c-9frkj to pw-control-plane
+  Normal   Pulled     2m37s (x6 over 5m37s)  kubelet            Container image "playwright-wrapper:sse-propagate-upstream-20260218-151850" already present on machine and can be accessed by the pod
+  Normal   Created    2m37s (x6 over 5m37s)  kubelet            Container created
+  Normal   Started    2m37s (x6 over 5m37s)  kubelet            Container started
+  Warning  BackOff    2s (x16 over 5m35s)    kubelet            Back-off restarting failed container wrapper in pod playwright-wrapper-766688565c-9frkj_n8n-prod(3b89af14-a571-4842-9f6d-3b1fdd8f0c57)

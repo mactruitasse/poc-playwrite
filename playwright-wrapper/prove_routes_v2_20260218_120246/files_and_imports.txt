@@ -1,0 +1,12 @@
+total 16
+drwxr-xr-x 1 app  app  4096 Feb 18 10:49 .
+drwxr-xr-x 1 root root 4096 Feb 18 10:56 ..
+drwxr-xr-x 1 app  app  4096 Feb 18 10:49 app
+-rw-rw-r-- 1 app  app   108 Feb 10 09:49 requirements.txt
+total 24
+drwxr-xr-x 1 app app 4096 Feb 18 10:49 .
+drwxr-xr-x 1 app app 4096 Feb 18 10:49 ..
+drwxrwxr-x 1 app app 4096 Feb 18 10:49 __pycache__
+-rw-rw-r-- 1 app app 7219 Feb 18 10:45 main.py
+-rw-rw-r-- 1 app app 2352 Feb 17 19:25 settings.py
+app.main.__file__ = /app/app/main.py

@@ -1,0 +1,2 @@
+["sh"]
+["-lc","ulimit","-n","65535","\u0026\u0026","exec","node","cli.js","--headless","--browser","chromium","--no-sandbox","--allowed-hosts","*","--host","0.0.0.0","--port","8933","--shared-browser-context"]

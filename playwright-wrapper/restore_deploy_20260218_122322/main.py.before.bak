@@ -1,0 +1,224 @@
+import asyncio
+import logging
+import os
+import secrets
+import time
+import shlex
+from dataclasses import dataclass, field
+from typing import Dict, Optional, List, Any
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request, Response, Header
+from fastapi.responses import StreamingResponse
+from kubernetes import client, config
+from kubernetes.client.rest import ApiException
+
+from app.settings import settings
+
+log = logging.getLogger(__name__)
+
+logger = log  # alias for debug patches
+
+app = FastAPI(title="Playwright Wrapper (Transparent Proxy)", version="1.0.0")
+
+
+
+@app.get("/health")
+async def health():
+    # Used by Kubernetes liveness/readiness probes
+    return {"ok": True}
+
+def _env_bool(name: str, default: bool) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _split_args(s: Optional[str]) -> Optional[List[str]]:
+    if s is None:
+        return None
+    s = s.strip()
+    if not s:
+        return None
+    return shlex.split(s)
+
+
+def _load_kube() -> bool:
+    if os.getenv("KUBE_ENABLED", "true").strip().lower() in ("0", "false", "no"):
+        log.info("Kubernetes disabled via KUBE_ENABLED=false")
+        return False
+
+    in_cluster = bool(os.getenv("KUBERNETES_SERVICE_HOST")) and bool(os.getenv("KUBERNETES_SERVICE_PORT"))
+    try:
+        if in_cluster:
+            config.load_incluster_config()
+            log.info("Loaded in-cluster Kubernetes config")
+        else:
+            config.load_kube_config()
+            log.info("Loaded kubeconfig (out-of-cluster)")
+        return True
+    except Exception as e:
+        log.warning("Failed to load Kubernetes config: %s", e)
+        return False
+
+
+def _fail_fast_token():
+    # Auth disabled: no token to validate.
+    return
+
+
+def _configure_logging():
+    level = (settings.log_level or "INFO").upper()
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+
+@dataclass
+class SessionInfo:
+    session_id: str
+    namespace: str
+    created_at: float = field(default_factory=lambda: time.time())
+    pod_name: Optional[str] = None
+    service_name: Optional[str] = None
+    target_url: Optional[str] = None  # e.g. http://svc:8933
+    last_access: float = field(default_factory=lambda: time.time())
+    # MCP is session-based: initialize returns mcp-session-id header which must be reused.
+    mcp_session_id: Optional[str] = None
+
+
+SESSIONS: Dict[str, SessionInfo] = {}
+STICKY_BY_KEY: Dict[str, str] = {}
+STICKY_LOCK = asyncio.Lock()
+MCP_INIT_LOCKS: Dict[str, asyncio.Lock] = {}
+KUBE_AVAILABLE = _load_kube()
+COREV1 = client.CoreV1Api() if KUBE_AVAILABLE else None
+
+KEEP_FAILED_RESOURCES = _env_bool("KEEP_FAILED_RESOURCES", False)
+
+
+def _get_namespace() -> str:
+    # Prefer explicit TARGET_NAMESPACE env/setting
+    if settings.target_namespace:
+        return settings.target_namespace
+    # fallback: namespace file when running in-cluster
+    ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    if os.path.exists(ns_path):
+        try:
+            return open(ns_path, "r", encoding="utf-8").read().strip()
+        except Exception:
+            pass
+    return "default"
+
+
+def _httpx_timeouts(read_timeout: float) -> httpx.Timeout:
+    return httpx.Timeout(
+        connect=settings.http_connect_timeout_seconds,
+        read=read_timeout,
+        write=settings.sse_write_timeout_seconds,
+        pool=settings.http_connect_timeout_seconds,
+    )
+
+
+
+def _is_mcp_path(path: str) -> bool:
+    p = (path or "").lstrip("/")
+    return p == "mcp" or p.startswith("mcp/")
+
+
+async def _ensure_mcp_initialized(si: SessionInfo) -> None:
+    if si.mcp_session_id:
+        return
+    lock = MCP_INIT_LOCKS.setdefault(si.session_id, asyncio.Lock())
+    async with lock:
+        if si.mcp_session_id:
+            return
+        if not si.target_url:
+            raise HTTPException(status_code=404, detail="Unknown session")
+
+        upstream = f"{si.target_url.rstrip('/')}/mcp"
+        headers = {
+            "content-type": "application/json",
+            "accept": "application/json, text/event-stream",
+        }
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "clientInfo": {"name": "playwright-wrapper", "version": app.version},
+                "capabilities": {},
+            },
+        }
+
+        timeout = _httpx_timeouts(settings.http_default_read_timeout_seconds)
+        async with httpx.AsyncClient(timeout=timeout) as client_http:
+            r = await client_http.post(upstream, headers=headers, json=payload)
+            sid = r.headers.get("mcp-session-id")
+            if not sid:
+                body = (r.text or "")[:500]
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"MCP initialize did not return mcp-session-id (status={r.status_code}): {body}",
+                )
+            si.mcp_session_id = sid.strip()
+
+async def _tcp_wait(host: str, port: int, timeout: float) -> None:
+    deadline = time.time() + timeout
+    last_err: Optional[Exception] = None
+    while time.time() < deadline:
+        try:
+            reader, writer = await asyncio.open_connection(host, port)
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return
+        except Exception as e:
+            last_err = e
+            await asyncio.sleep(1.0)
+    raise TimeoutError(f"TCP connect to {host}:{port} timed out after {timeout}s: {last_err!s}")
+
+
+def _playwright_container_spec() -> client.V1Container:
+    cmd = (settings.playwright_command or "").strip() or None
+    args = _split_args(settings.playwright_args)
+
+    # IMPORTANT:
+    # If PLAYWRIGHT_COMMAND=sh and PLAYWRIGHT_ARGS starts with -c/-lc, shlex.split()
+    # yields many tokens, but sh expects the command after -c/-lc as ONE string.
+    #
+    # Example (bad):
+    #   command: ["sh"]
+    #   args: ["-lc","ulimit","-n","65535","&&","exec","node",...]
+    #
+    # Example (good):
+    #   command: ["sh"]
+    #   args: ["-lc","ulimit -n 65535 && exec node ..."]
+    #
+    # Also, never keep quotes around shell operators like &&.
+    if cmd in ("sh", "/bin/sh") and args:
+        if args[0] in ("-c", "-lc") and len(args) > 2:
+            toks = []
+            for t in args[1:]:
+                # normalize common quoted tokens
+                if t in ("&&", "'&&'", '"&&"'):
+                    toks.append("&&")
+                elif t in ("*", "'*'", '"*"'):
+                    toks.append("*")
+                else:
+                    toks.append(t)
+            shell_cmd = " ".join(toks).strip()
+            args = [args[0], shell_cmd]
+
+    return client.V1Container(
+        name="playwright",
+        image=settings.playwright_image,
+        image_pull_policy="IfNotPresent",
+        command=[cmd] if cmd else None,
+        args=args,
+        ports=[client.V1ContainerPort(container_port=settings.playwright_port)],
+        security_context=None,  # set later
+        volume_mounts=None,  # set later
+    )

@@ -1,0 +1,61 @@
+### CMD: kubectl -n n8n-prod describe deploy playwright-wrapper
+### DATE: 2026-02-19T10:17:55+01:00
+
+Name:                   playwright-wrapper
+Namespace:              n8n-prod
+CreationTimestamp:      Tue, 17 Feb 2026 09:33:37 +0100
+Labels:                 app.kubernetes.io/instance=n8n-prod
+                        app.kubernetes.io/name=playwright-wrapper
+Annotations:            argocd.argoproj.io/tracking-id: n8n-prod:apps/Deployment:n8n-prod/playwright-wrapper
+                        deployment.kubernetes.io/revision: 132
+Selector:               app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper
+Replicas:               1 desired | 1 updated | 2 total | 1 available | 1 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:           app.kubernetes.io/instance=n8n-prod
+                    app.kubernetes.io/name=playwright-wrapper
+  Annotations:      kubectl.kubernetes.io/restartedAt: 2026-02-19T10:04:21+01:00
+  Service Account:  playwright-wrapper
+  Containers:
+   wrapper:
+    Image:      playwright-wrapper:proxyany-ssepost-20260218_171047
+    Port:       8080/TCP
+    Host Port:  0/TCP
+    Liveness:   http-get http://:http/health delay=5s timeout=1s period=20s #success=1 #failure=3
+    Readiness:  http-get http://:http/health delay=2s timeout=1s period=10s #success=1 #failure=3
+    Environment:
+      API_TOKEN:             <set to the key 'API_TOKEN' in secret 'playwright-wrapper-secret'>  Optional: false
+      TARGET_NAMESPACE:      n8n-prod
+      PW_POD_LABEL_KEY:      app
+      PW_POD_LABEL_VALUE:    playwright-ephemeral
+      PW_MCP_PORT:           8933
+      PYTHONUNBUFFERED:      1
+      PLAYWRIGHT_COMMAND:    sh
+      PLAYWRIGHT_ARGS:       -lc ulimit -n 65535 && exec node cli.js --headless --browser chromium --no-sandbox --allowed-hosts localhost,127.0.0.1,0.0.0.0 --host 0.0.0.0 --port 8933 --shared-browser-context
+      MCP_AUTO_INIT:         true
+      UPSTREAM_HOST_HEADER:  localhost
+    Mounts:
+      /tmp from tmp (rw)
+  Volumes:
+   tmp:
+    Type:          EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:        
+    SizeLimit:     <unset>
+  Node-Selectors:  <none>
+  Tolerations:     <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    False   ProgressDeadlineExceeded
+OldReplicaSets:  playwright-wrapper-766688565c (0/0 replicas created), playwright-wrapper-67db4d5f84 (0/0 replicas created), playwright-wrapper-7c5485646c (0/0 replicas created), playwright-wrapper-69c75ff9c (0/0 replicas created), playwright-wrapper-98f4646ff (0/0 replicas created), playwright-wrapper-6bd8cdd959 (0/0 replicas created), playwright-wrapper-8b759698b (0/0 replicas created), playwright-wrapper-64574956fd (0/0 replicas created), playwright-wrapper-66595f9db9 (0/0 replicas created), playwright-wrapper-5989c5b9f5 (0/0 replicas created), playwright-wrapper-669cd78d49 (1/1 replicas created), playwright-wrapper-578c4794d5 (0/0 replicas created), playwright-wrapper-764f7b85ff (0/0 replicas created)
+NewReplicaSet:   playwright-wrapper-5856ccdd8c (1/1 replicas created)
+Events:
+  Type    Reason             Age   From                   Message
+  ----    ------             ----  ----                   -------
+  Normal  ScalingReplicaSet  34m   deployment-controller  Scaled down replica set playwright-wrapper-578c4794d5 from 1 to 0
+  Normal  ScalingReplicaSet  34m   deployment-controller  Scaled up replica set playwright-wrapper-764f7b85ff from 0 to 1
+  Normal  ScalingReplicaSet  13m   deployment-controller  Scaled down replica set playwright-wrapper-764f7b85ff from 1 to 0
+  Normal  ScalingReplicaSet  13m   deployment-controller  Scaled up replica set playwright-wrapper-5856ccdd8c from 0 to 1

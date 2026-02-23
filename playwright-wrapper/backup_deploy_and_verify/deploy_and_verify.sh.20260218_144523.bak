@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+### ===================== CONFIG =====================
+REPO_ROOT="${REPO_ROOT:-/home/$USER/docker/playwright-wrapper}"
+
+NS="${NS:-n8n-prod}"
+DEPLOY="${DEPLOY:-playwright-wrapper}"
+CONTAINER="${CONTAINER:-wrapper}"
+WRAPPER_SVC="${WRAPPER_SVC:-playwright-wrapper}"
+KIND_CLUSTER="${KIND_CLUSTER:-pw}"
+
+# Build tag
+IMAGE_TAG="${IMAGE_TAG:-fix-mainpy-$(date +%Y%m%d-%H%M%S)}"
+IMAGE="${IMAGE:-playwright-wrapper:${IMAGE_TAG}}"
+
+# Wrapper secret/token (key name)
+TOKEN_SECRET="${TOKEN_SECRET:-playwright-wrapper-secret}"
+TOKEN_KEY="${TOKEN_KEY:-API_TOKEN}"
+
+# Timeouts
+ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-240s}"
+POD_WAIT_SECONDS="${POD_WAIT_SECONDS:-60}"
+CURL_MAX_TIME="${CURL_MAX_TIME:-10}"
+### ==================================================
+
+cd "$REPO_ROOT"
+
+OUT_DIR="./deploy_verify_fixed_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$OUT_DIR"
+
+echo "[+] OUT_DIR=$OUT_DIR"
+echo "[+] REPO_ROOT=$REPO_ROOT"
+echo "[+] NS=$NS DEPLOY=$DEPLOY WRAPPER_SVC=$WRAPPER_SVC KIND_CLUSTER=$KIND_CLUSTER"
+echo "[+] IMAGE=$IMAGE"
+
+# ---------- BACKUP local file ----------
+echo "[+] Backup local app/main.py"
+cp -a "app/main.py" "$OUT_DIR/main.py.before.bak"
+sha256sum "app/main.py" | tee "$OUT_DIR/main.py.before.sha256" >/dev/null
+
+# ---------- PATCH: disable local python route listing (optional) ----------
+# Your previous error is because local python lacks httpx.
+# We will NOT import app.main locally. Proof will be done inside the running pod.
+echo "[+] Patch local deploy script(s) to not import app.main on host (best-effort)"
+for f in ./deploy_and_verify.sh ./deploy_and_verify_v2.sh; do
+  if [ -f "$f" ]; then
+    cp -a "$f" "$OUT_DIR/$(basename "$f").before.bak"
+    # Disable route print block by forcing SHOW_ROUTES=false if present
+    # If script doesn't have SHOW_ROUTES, nothing breaks.
+    if grep -q '^SHOW_ROUTES=' "$f"; then
+      sed -i 's/^SHOW_ROUTES=.*/SHOW_ROUTES="false"/' "$f"
+    fi
+  fi
+done
+
+# ---------- BUILD (NO CACHE to be safe) ----------
+echo "[+] Build image (no cache): $IMAGE"
+docker build --no-cache -t "$IMAGE" . | tee "$OUT_DIR/docker_build.log"
+
+# ---------- kind load ----------
+echo "[+] kind load docker-image \"$IMAGE\" --name \"$KIND_CLUSTER\""
+kind load docker-image "$IMAGE" --name "$KIND_CLUSTER" | tee "$OUT_DIR/kind_load.log"
+
+# ---------- deploy ----------
+echo "[+] Deploy image to $NS/$DEPLOY container=$CONTAINER"
+kubectl -n "$NS" set image "deploy/$DEPLOY" "$CONTAINER=$IMAGE" | tee "$OUT_DIR/kubectl_set_image.log"
+kubectl -n "$NS" rollout restart "deploy/$DEPLOY" | tee "$OUT_DIR/kubectl_rollout_restart.log"
+kubectl -n "$NS" rollout status "deploy/$DEPLOY" --timeout="$ROLLOUT_TIMEOUT" | tee "$OUT_DIR/kubectl_rollout_status.log"
+
+# ---------- find new pod ----------
+echo "[+] Find new wrapper pod"
+selector="$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.spec.selector.matchLabels}' | tr -d '{}')"
+# selector comes like: map[key:value ...] sometimes; fallback to known labels if empty
+if [ -z "$selector" ]; then
+  label_sel="app.kubernetes.io/name=$DEPLOY,app.kubernetes.io/instance=$NS"
+else
+  # convert "key:value key2:value2" -> "key=value,key2=value2"
+  label_sel="$(echo "$selector" | sed 's/ \+/,/g; s/:/=/g')"
+fi
+
+# wait up to POD_WAIT_SECONDS for running pod
+end=$((SECONDS + POD_WAIT_SECONDS))
+pod=""
+while [ $SECONDS -lt $end ]; do
+  pod="$(kubectl -n "$NS" get pod -l "$label_sel" --sort-by=.metadata.creationTimestamp \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.phase}{"\t"}{.status.containerStatuses[0].ready}{"\n"}{end}' \
+    | tail -n 1 | awk '{print $1}')"
+  if [ -n "${pod:-}" ]; then
+    phase="$(kubectl -n "$NS" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
+    if [ "$phase" = "Running" ]; then
+      break
+    fi
+  fi
+  sleep 2
+done
+
+if [ -z "${pod:-}" ]; then
+  echo "ERROR: could not find wrapper pod after rollout" >&2
+  exit 1
+fi
+echo "[+] wrapper pod=$pod (label_sel=$label_sel)"
+kubectl -n "$NS" get pod "$pod" -o wide | tee "$OUT_DIR/wrapper_pod.txt"
+
+# ---------- prove routes INSIDE pod ----------
+echo "[+] Prove FastAPI routes INSIDE pod (authoritative, avoids host python deps)"
+kubectl -n "$NS" exec "$pod" -c "$CONTAINER" -- python3 - <<'PY' | tee "$OUT_DIR/routes_inside_pod.txt"
+from app.main import app
+for r in app.routes:
+    path = getattr(r, "path", "?")
+    methods = getattr(r, "methods", None)
+    name = getattr(r, "name", "?")
+    m = sorted(list(methods)) if methods else None
+    print(f"{path}\tmethods={m}\tname={name}")
+PY
+
+echo "[+] Prove /openapi.json includes /sessions via in-cluster curl"
+kubectl -n "$NS" run "curltest-openapi-$RANDOM" --rm -i --restart=Never --image=curlimages/curl:8.6.0 -- \
+  sh -lc "curl -sS --max-time ${CURL_MAX_TIME} http://${WRAPPER_SVC}.${NS}.svc.cluster.local:8080/openapi.json | tr -d '\n' | sed 's/{/{\n/g' | head -n 50" \
+  | tee "$OUT_DIR/openapi_head.txt" || true
+
+echo "[+] Grep /sessions in openapi (best-effort)"
+grep -q '"/sessions"' "$OUT_DIR/openapi_head.txt" && echo "[OK] /sessions appears in openapi head" | tee "$OUT_DIR/openapi_sessions_grep.txt" || \
+  echo "[WARN] /sessions not seen in the first chunk of openapi (openapi may be longer) — rely on routes_inside_pod.txt + live POST test" | tee "$OUT_DIR/openapi_sessions_grep.txt"
+
+# ---------- live POST /sessions ----------
+echo "[+] Fetch API token from secret (for curl tests)"
+TOKEN="$(kubectl -n "$NS" get secret "$TOKEN_SECRET" -o jsonpath="{.data.${TOKEN_KEY}}" | base64 -d)"
+echo "token_len=${#TOKEN}" | tee "$OUT_DIR/token_len.txt" >/dev/null
+
+echo "[+] POST /sessions (in-cluster curl)"
+kubectl -n "$NS" run "curltest-sessions-$RANDOM" --rm -i --restart=Never --image=curlimages/curl:8.6.0 -- \
+  sh -lc "curl -sS -i --max-time 30 \
+    -H \"X-API-Token: ${TOKEN}\" \
+    -H \"Content-Type: application/json\" \
+    -X POST http://${WRAPPER_SVC}.${NS}.svc.cluster.local:8080/sessions \
+    -d '{}' " \
+  | tee "$OUT_DIR/post_sessions_response.txt" || true
+
+echo
+echo "[+] Verification summary:"
+echo "  - Routes inside pod: $OUT_DIR/routes_inside_pod.txt"
+echo "  - POST /sessions response: $OUT_DIR/post_sessions_response.txt"
+echo
+echo "[OK] Done. Bundle: $OUT_DIR"
+echo "Rollback local main.py:"
+echo "  cp -a '$OUT_DIR/main.py.before.bak' '$REPO_ROOT/app/main.py'"

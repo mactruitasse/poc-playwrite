@@ -1,0 +1,10 @@
+== curl http://127.0.0.1:8933/
+
+== curl http://127.0.0.1:8933/mcp
+
+== curl http://127.0.0.1:8933/sse
+
+== curl http://127.0.0.1:8933/openapi.json
+
+== curl http://127.0.0.1:8933/package.json
+

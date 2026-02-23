@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  creationTimestamp: "2026-02-17T08:33:37Z"
+  labels:
+    app.kubernetes.io/instance: n8n-prod
+    app.kubernetes.io/name: playwright-wrapper
+    endpoints.kubernetes.io/managed-by: endpoint-controller
+  name: playwright-wrapper
+  namespace: n8n-prod
+  resourceVersion: "88448"
+  uid: 8bced79c-68bc-481f-88c3-afe639846bf4
+subsets:
+- addresses:
+  - ip: 10.244.0.17
+    nodeName: pw-control-plane
+    targetRef:
+      kind: Pod
+      name: playwright-wrapper-67bf85b855-8mfbt
+      namespace: n8n-prod
+      uid: 6bdfd58f-f256-489c-a7e8-3ab48c9a6426
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP

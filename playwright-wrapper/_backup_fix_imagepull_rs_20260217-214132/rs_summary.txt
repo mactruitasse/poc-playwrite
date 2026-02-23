@@ -1,0 +1,6 @@
+  image=n8n-playwright-local:1.0.1-fix-host
+  replicas(spec)=1 ready=0
+  image=n8n-playwright-local:1.0.1-fix-host
+  replicas(spec)=1 ready=0
+  image=n8n-playwright-local:1.0.1-fix-host
+  replicas(spec)=1 ready=0

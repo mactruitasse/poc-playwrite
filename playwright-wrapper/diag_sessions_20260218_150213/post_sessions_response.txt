@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+date: Wed, 18 Feb 2026 14:02:14 GMT
+server: uvicorn
+content-length: 91
+content-type: application/json
+
+{"sessionId":"b2a4c36b727a9f8b","targetUrl":"http://pw-b2a4c36b727a9f8b.n8n-prod.svc:8933"}pod "curltest-sessions-18838" deleted

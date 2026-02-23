@@ -1,0 +1,3 @@
+### CMD: python3 -m py_compile /home/aconte/docker/playwright-wrapper/app/main.py
+### DATE: 2026-02-19T10:27:55+01:00
+

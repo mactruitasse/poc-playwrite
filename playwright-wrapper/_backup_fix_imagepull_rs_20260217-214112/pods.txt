@@ -1,0 +1,14 @@
+NAME                                  READY   STATUS             RESTARTS   AGE     IP             NODE               NOMINATED NODE   READINESS GATES
+n8n-prod-9c55b445d-f8z2w              1/1     Running            0          30h     10.244.0.29    pw-control-plane   <none>           <none>
+n8n-prod-c945f7c6f-jrqfh              0/1     ImagePullBackOff   0          7m15s   10.244.0.250   pw-control-plane   <none>           <none>
+n8n-prod-postgresql-0                 1/1     Running            0          31h     10.244.0.22    pw-control-plane   <none>           <none>
+n8n-prod-redis-master-0               1/1     Running            0          31h     10.244.0.20    pw-control-plane   <none>           <none>
+n8n-prod-webhook-7b8644d8b5-mbb62     0/1     ImagePullBackOff   0          7m15s   10.244.0.251   pw-control-plane   <none>           <none>
+n8n-prod-webhook-8cf88cd4b-nlg2c      1/1     Running            0          30h     10.244.0.30    pw-control-plane   <none>           <none>
+n8n-prod-worker-7dcc77d9c8-tq6kf      1/1     Running            0          30h     10.244.0.26    pw-control-plane   <none>           <none>
+n8n-prod-worker-c94d9949c-45pm6       0/1     ImagePullBackOff   0          7m15s   10.244.0.252   pw-control-plane   <none>           <none>
+playwright-wrapper-669b56856b-pq74p   1/1     Running            0          16m     10.244.0.245   pw-control-plane   <none>           <none>
+pw-32e67cc9308e113f                   1/1     Running            0          23m     10.244.0.243   pw-control-plane   <none>           <none>
+pw-481624059c376af7                   1/1     Running            0          16m     10.244.0.248   pw-control-plane   <none>           <none>
+pw-86c6fd36d3c9b911                   1/1     Running            0          3h39m   10.244.0.135   pw-control-plane   <none>           <none>
+pw-f32f5dbdd9570c9d                   1/1     Running            0          34m     10.244.0.237   pw-control-plane   <none>           <none>
