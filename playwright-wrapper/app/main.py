@@ -3,13 +3,11 @@ import logging
 import os
 import secrets
 import time
-import json
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
 from kubernetes import client, config
 from app.settings import settings
 
@@ -17,7 +15,7 @@ from app.settings import settings
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="Playwright Wrapper Survival Mode", version="1.3.0")
+app = FastAPI(title="Playwright Wrapper Survival Mode", version="1.4.0")
 
 @dataclass
 class SessionInfo:
@@ -54,27 +52,23 @@ COREV1 = client.CoreV1Api() if KUBE_AVAILABLE else None
 UPSTREAM_HOST_HEADER = os.getenv("UPSTREAM_HOST_HEADER", "localhost")
 
 async def _tcp_wait(host: str, port: int, timeout: float = 300.0):
-    """Attend que le port soit ouvert avec un timeout très long pour Kind."""
+    """Attend que le port soit ouvert (indispensable pour Kind)."""
     deadline = time.time() + timeout
     log.info(f"Attente réseau pour {host}:{port} (max {timeout}s)...")
     while time.time() < deadline:
         try:
-            reader, writer = await asyncio.open_connection(host, port)
+            # On tente une connexion brute pour vérifier que le serveur écoute
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=2.0)
             writer.close()
             await writer.wait_closed()
             log.info(f"SUCCESS: Pod {host} répond sur le port {port}")
             return
         except:
-            await asyncio.sleep(5.0) # On ne bombarde pas le CPU
-    raise TimeoutError(f"Pod {host} toujours injoignable après {timeout}s")
-
-# GC DÉSACTIVÉ TEMPORAIREMENT POUR ÉVITER LA SUPPRESSION PRÉMATURÉE
-async def _gc_loop():
-    log.info("Garbage Collector en pause pour laisser les pods démarrer.")
-    return 
+            await asyncio.sleep(2.0)
+    raise TimeoutError(f"Le pod {host} n'a jamais ouvert le port {port} (Statut: Completed?)")
 
 async def _ensure_mcp_initialized(si: SessionInfo):
-    """Initialise le protocole MCP sur le serveur Playwright."""
+    """Initialise le protocole MCP une fois le pod prêt."""
     if si.mcp_session_id:
         return
     async with MCP_INIT_LOCKS.setdefault(si.session_id, asyncio.Lock()):
@@ -103,17 +97,14 @@ async def _ensure_mcp_initialized(si: SessionInfo):
 async def proxy_any(session_id: str, path: str, request: Request):
     si = SESSIONS.get(session_id)
     if not si:
-        raise HTTPException(status_code=404, detail="Session perdue")
+        raise HTTPException(status_code=404, detail="Session non trouvée")
     
     si.last_access = time.time()
-    
     headers = dict(request.headers)
-    headers.update({
-        "host": UPSTREAM_HOST_HEADER,
-        "accept": "application/json, text/event-stream",
-        "connection": "keep-alive"
-    })
-    for h in ("content-length", "content-type", "connection"):
+    headers.update({"host": UPSTREAM_HOST_HEADER})
+    
+    # Suppression des headers conflictuels
+    for h in ("content-length", "host", "connection"):
         headers.pop(h, None)
 
     if "mcp" in path:
@@ -122,9 +113,7 @@ async def proxy_any(session_id: str, path: str, request: Request):
     if si.mcp_session_id:
         headers["mcp-session-id"] = si.mcp_session_id
 
-    client_timeout = httpx.Timeout(180.0, connect=60.0)
-    
-    async with httpx.AsyncClient(timeout=client_timeout) as client_http:
+    async with httpx.AsyncClient(timeout=120.0) as client_http:
         try:
             r = await client_http.request(
                 method=request.method,
@@ -133,43 +122,44 @@ async def proxy_any(session_id: str, path: str, request: Request):
                 content=await request.body(),
                 params=request.query_params
             )
-            return Response(
-                content=r.content,
-                status_code=r.status_code,
-                headers={k: v for k, v in r.headers.items() if k.lower() != 'content-length'}
-            )
+            return Response(content=r.content, status_code=r.status_code, headers=dict(r.headers))
         except Exception as e:
-            log.error(f"Erreur Proxy vers {si.pod_name}: {e}")
-            raise HTTPException(status_code=502, detail="Erreur de communication avec le navigateur")
+            log.error(f"Proxy Error: {e}")
+            raise HTTPException(status_code=502, detail="Navigateur injoignable")
 
 @app.api_route("/mcp/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 @app.api_route("/mcp", methods=["GET", "POST", "OPTIONS"])
 async def mcp_entry(request: Request, path: str = "mcp"):
     raw_key = request.query_params.get("session") or "default"
-    # Nettoyage profond pour Kind/n8n
-    key = raw_key.replace("{", "").replace("}", "").replace("$", "").replace(" ", "").strip()
+    # Nettoyage de la clé pour n8n
+    key = raw_key.replace("{", "").replace("}", "").replace("$", "").strip() or "default"
     
     async with STICKY_LOCK:
         sid = STICKY_BY_KEY.get(key)
         if not sid or sid not in SESSIONS:
             async with CREATE_SESSION_LOCK:
+                # Double check après le lock
                 sid = STICKY_BY_KEY.get(key)
                 if not sid or sid not in SESSIONS:
                     session_id = secrets.token_hex(8)
                     p_name = f"pw-{session_id}"
                     
-                    # Ressources MINI pour Kind
+                    # Ressources minimales pour Kind
                     resources = client.V1ResourceRequirements(
                         requests={"cpu": "50m", "memory": "128Mi"},
                         limits={"cpu": "500m", "memory": "512Mi"}
                     )
                     
+                    # CORRECTIF: On force l'exécution en mode serveur
                     container = client.V1Container(
                         name="playwright",
                         image=settings.playwright_image,
+                        # Commande pour forcer le serveur MCP à rester UP
+                        command=["npx", "-y", "@modelcontextprotocol/server-playwright"],
+                        args=["--port", "8933"],
                         ports=[client.V1ContainerPort(container_port=8933)],
                         resources=resources,
-                        env=[client.V1EnvVar(name="MAX_CONCURRENT_SESSIONS", value="1")]
+                        env=[client.V1EnvVar(name="PORT", value="8933")]
                     )
                     
                     pod = client.V1Pod(
@@ -177,11 +167,11 @@ async def mcp_entry(request: Request, path: str = "mcp"):
                         spec=client.V1PodSpec(containers=[container], restart_policy="Never")
                     )
                     
-                    log.info(f"CREATION POD: {p_name} pour session {key}")
+                    log.info(f"Démarrage d'un nouveau Pod Playwright: {p_name}")
                     COREV1.create_namespaced_pod(namespace="n8n-prod", body=pod)
                     
                     svc = client.V1Service(
-                        metadata=client.V1ObjectMeta(name=p_name, labels={"app": "pw", "sid": session_id}),
+                        metadata=client.V1ObjectMeta(name=p_name),
                         spec=client.V1ServiceSpec(
                             selector={"app": "pw", "sid": session_id},
                             ports=[client.V1ServicePort(port=8933)]
@@ -189,25 +179,30 @@ async def mcp_entry(request: Request, path: str = "mcp"):
                     )
                     COREV1.create_namespaced_service(namespace="n8n-prod", body=svc)
                     
+                    target = f"http://{p_name}.n8n-prod.svc:8933"
+                    
+                    # On attend que le serveur soit réellement prêt avant de rendre la main
                     try:
-                        # On attend que le pod soit réellement prêt
                         await _tcp_wait(f"{p_name}.n8n-prod.svc", 8933)
                     except Exception as e:
-                        log.error(f"ÉCHEC DÉMARRAGE {p_name}: {e}")
-                        raise HTTPException(status_code=504, detail="Navigateur trop lent à démarrer")
+                        log.error(f"Timeout sur {p_name}: {e}")
+                        raise HTTPException(status_code=504, detail="Le pod Playwright n'a pas démarré à temps")
                     
-                    target = f"http://{p_name}.n8n-prod.svc:8933"
-                    SESSIONS[session_id] = SessionInfo(session_id=session_id, namespace="n8n-prod", 
-                                                       pod_name=p_name, service_name=p_name, target_url=target)
+                    SESSIONS[session_id] = SessionInfo(
+                        session_id=session_id, 
+                        namespace="n8n-prod", 
+                        pod_name=p_name, 
+                        target_url=target
+                    )
                     STICKY_BY_KEY[key] = session_id
                     sid = session_id
 
     return await proxy_any(sid, path, request)
 
-@app.on_event("startup")
-async def startup():
-    log.info("Wrapper prêt en mode survie.")
-
 @app.get("/health")
 async def health():
-    return {"status": "ok", "active_pods": len(SESSIONS)}
+    return {"status": "ok", "active_sessions": len(SESSIONS)}
+
+@app.on_event("startup")
+async def startup_event():
+    log.info("Wrapper Playwright prêt.")
