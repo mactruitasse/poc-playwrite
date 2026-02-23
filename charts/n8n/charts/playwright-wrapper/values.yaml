@@ -1,36 +1,58 @@
 replicaCount: 1
+
 image:
   repository: playwright-wrapper
-  tag: "proxy-20260223-144753"
+  tag: "proxy-20260223-150449"
   pullPolicy: Never
+
 service:
   type: ClusterIP
   port: 8080
+
+# Configuration de la sécurité du Pod
 podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+
+# Configuration de la sécurité du Container
+# Note: readOnlyRootFilesystem est mis à false pour permettre 
+# au client K8s Python de gérer ses certificats/configs temporaires
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
+  readOnlyRootFilesystem: false 
   capabilities:
     drop:
     - ALL
   runAsNonRoot: true
   runAsUser: 10001
   runAsGroup: 10001
-resources: {}
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
 env:
   apiTokenSecretName: playwright-wrapper-secret
   apiTokenSecretKey: API_TOKEN
-  targetNamespace: default
+  targetNamespace: n8n-prod  # Changé de 'default' à 'n8n-prod'
   playwrightPodLabelKey: app
-  playwrightPodLabelValue: playwright-ephemeral
+  playwrightPodLabelValue: pw
   playwrightMcpPort: '8933'
+  playwright_image: "mcr.microsoft.com/playwright/mcp:latest"
+
+# Configuration RBAC cruciale
 rbac:
   create: true
+
 serviceAccount:
   create: true
-  name: ''
+  name: 'playwright-wrapper-sa'
+
+# C'est ici que l'autorisation de créer des Pods est activée
 permissions:
-  canCreatePods: false
+  canCreatePods: true # Changé de 'false' à 'true'

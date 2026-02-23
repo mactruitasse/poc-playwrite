@@ -61,7 +61,7 @@ playwright-wrapper:
   enabled: true
   image:
     repository: playwright-wrapper
-    tag: "proxy-20260223-150449"
+    tag: "proxy-20260223-144753"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
