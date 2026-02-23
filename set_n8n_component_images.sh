@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Script: force main/worker/webhook to use a known-good local image tag in apps/n8n/values-prod.yaml
-# Usage:
-#   ./set_n8n_component_images.sh [VALUES_FILE] [TAG] [REPO] [PULLPOLICY]
-# Defaults:
-#   VALUES_FILE=apps/n8n/values-prod.yaml
-#   TAG=2.2.4-pw1.49.0-fix4
-#   REPO=n8n-playwright-local
-#   PULLPOLICY=IfNotPresent
-
 VALUES_FILE="${1:-apps/n8n/values-prod.yaml}"
 TAG="${2:-2.2.4-pw1.49.0-fix4}"
 REPO="${3:-n8n-playwright-local}"
@@ -23,47 +14,49 @@ fi
 BACKUP="${VALUES_FILE}.bak.$(date +%Y%m%d-%H%M%S)"
 cp -a "$VALUES_FILE" "$BACKUP"
 
-python3 - "$VALUES_FILE" "$TAG" "$REPO" "$PULLPOLICY" <<'PY'
+# Updates/creates: main.image, worker.image, webhook.image
+python3 - <<'PY'
 import sys, re, pathlib
 
 path = pathlib.Path(sys.argv[1])
 tag  = sys.argv[2]
 repo = sys.argv[3]
 pp   = sys.argv[4]
-
-txt = path.read_text(encoding="utf-8")
+txt  = path.read_text(encoding="utf-8")
 
 def ensure_section(section: str, txt: str) -> None:
     if not re.search(rf'^{re.escape(section)}:\s*$', txt, flags=re.M):
         raise SystemExit(f"ERROR: top-level section '{section}:' not found (won't guess).")
 
 def upsert_image_block(section: str, txt: str) -> str:
-    # Capture the section body: from "section:" to the next top-level key or EOF
+    # Capture the section block: from "section:" to next top-level key or EOF
     m = re.search(rf'^(?P<h>{re.escape(section)}:\s*)\n(?P<body>(?:[ ]{{2}}.*\n)*)', txt, flags=re.M)
     if not m:
         raise SystemExit(f"ERROR: couldn't parse section '{section}:' block.")
 
     body = m.group("body")
 
-    # If an "  image:" block exists, update its keys; otherwise insert it at top of the section body.
+    # If an "  image:" block exists, update its keys. Otherwise, insert it at the top of the section body.
     if re.search(r'^[ ]{2}image:\s*$', body, flags=re.M):
+        # Update existing keys if present; if missing, add them right under image:
         lines = body.splitlines(True)
         out = []
         in_image = False
         saw_repo = saw_tag = saw_pp = False
-
-        for line in lines:
+        for i, line in enumerate(lines):
             if re.match(r'^[ ]{2}image:\s*$', line):
                 in_image = True
                 out.append(line)
                 continue
-
             if in_image:
-                # End of image block when indent returns to 2 spaces with another key
+                # image block ends when indentation returns to 2 spaces with another key, or blank line, or end
                 if re.match(r'^[ ]{2}[^ ].*:\s*$', line):
-                    if not saw_repo: out.append(f"    repository: {repo}\n")
-                    if not saw_tag:  out.append(f"    tag: {tag}\n")
-                    if not saw_pp:   out.append(f"    pullPolicy: {pp}\n")
+                    # before leaving image block, inject missing keys
+                    ins = []
+                    if not saw_repo: ins.append(f"    repository: {repo}\n")
+                    if not saw_tag:  ins.append(f"    tag: {tag}\n")
+                    if not saw_pp:   ins.append(f"    pullPolicy: {pp}\n")
+                    out.extend(ins)
                     in_image = False
                     out.append(line)
                     continue
@@ -77,7 +70,7 @@ def upsert_image_block(section: str, txt: str) -> str:
 
             out.append(line)
 
-        # If section ended while still in image block
+        # If file ended while still in image block, append missing keys at end
         if in_image:
             if not saw_repo: out.append(f"    repository: {repo}\n")
             if not saw_tag:  out.append(f"    tag: {tag}\n")
@@ -85,6 +78,7 @@ def upsert_image_block(section: str, txt: str) -> str:
 
         new_body = "".join(out)
     else:
+        # Insert an image block at the beginning of the section body
         image_block = (
             f"  image:\n"
             f"    repository: {repo}\n"
@@ -93,6 +87,7 @@ def upsert_image_block(section: str, txt: str) -> str:
         )
         new_body = image_block + body
 
+    # Replace the section body
     start, end = m.start("body"), m.end("body")
     return txt[:start] + new_body + txt[end:]
 
@@ -101,15 +96,7 @@ for sec in ("main", "worker", "webhook"):
     txt = upsert_image_block(sec, txt)
 
 path.write_text(txt, encoding="utf-8")
-PY
+PY "$VALUES_FILE" "$TAG" "$REPO" "$PULLPOLICY"
 
-echo "OK: updated main/worker/webhook image to ${REPO}:${TAG} (pullPolicy=${PULLPOLICY}) in ${VALUES_FILE}"
-echo "Backup: $BACKUP"
-
-echo
-echo "Verify rendered sections:"
-for sec in main worker webhook; do
-  echo "----- ${sec}: -----"
-  awk -v s="${sec}" 'BEGIN{p=0} $0 ~ ("^"s":"){p=1} p{print} /^[^[:space:]]/{if(p&&NR>1) exit}' "$VALUES_FILE"
-  echo
-done
+echo "OK: set main/worker/webhook image to ${REPO}:${TAG} (pullPolicy=${PULLPOLICY}) in ${VALUES_FILE}"
+echo "Backup: ${BACKUP}"
