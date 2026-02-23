@@ -1,85 +1,83 @@
-cat > /home/aconte/n8n-gitops/playwright-wrapper/patch_wrapper_ignore_remoteprotocol.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-die() { echo "ERROR: $*" >&2; exit 1; }
-need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
+NS="kube-system"
+DS="kube-proxy"
+NOFILE="${NOFILE:-1048576}"
 
-need_cmd python3
-need_cmd date
-need_cmd cp
+need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
+need kubectl
+need python3
 
-WRAPPER_DIR="${WRAPPER_DIR:-$(pwd)}"
-MAIN="${MAIN:-$WRAPPER_DIR/app/main.py}"
-[[ -f "$MAIN" ]] || die "main.py not found: $MAIN (set WRAPPER_DIR=/path/to/wrapper)"
+echo "[i] Reading current kube-proxy args..."
+python3 - <<'PY'
+import json, subprocess, shlex, sys
 
-ts="$(date +%Y%m%d-%H%M%S)"
-bak="$MAIN.bak.ignore-remoteprotocol.$ts"
-cp -a "$MAIN" "$bak"
-echo "[OK] Backup -> $bak"
+NS="kube-system"
+DS="kube-proxy"
+NOFILE=int(__import__("os").environ.get("NOFILE","1048576"))
 
-python3 - <<PY
-from __future__ import annotations
-from pathlib import Path
-import py_compile
-import sys
+raw = subprocess.check_output(["kubectl","-n",NS,"get","ds",DS,"-o","json"])
+ds = json.loads(raw)
 
-main_path = Path("$MAIN")
-txt = main_path.read_text(encoding="utf-8")
-lines = txt.splitlines(True)
+c = None
+for cc in ds["spec"]["template"]["spec"]["containers"]:
+    if cc.get("name") == "kube-proxy":
+        c = cc
+        break
+if not c:
+    print("ERROR: kube-proxy container not found in ds", file=sys.stderr)
+    sys.exit(1)
 
-MARK = "Upstream SSE closed abruptly"
-if MARK in txt:
-    print("[OK] Already patched (marker found).")
-    py_compile.compile(str(main_path), doraise=True)
-    sys.exit(0)
+# Build the original command line as kubernetes would run it.
+cmd = c.get("command") or []
+args = c.get("args") or []
 
-def indent_of(s: str) -> str:
-    return s[:len(s) - len(s.lstrip(" "))]
+# If command is empty, entrypoint is image's default; args usually start with "kube-proxy".
+orig = cmd + args
+if not orig:
+    print("ERROR: couldn't determine kube-proxy command/args", file=sys.stderr)
+    sys.exit(1)
 
-patched = 0
-i = 0
-while i < len(lines):
-    line = lines[i]
-    if "async def _stream():" in line:
-        scan_limit = min(len(lines), i + 240)
-        try_indent = None
-        finally_idx = None
+# Determine what to exec:
+# - if first token looks like kube-proxy, exec it as-is
+# - else exec "kube-proxy" + args
+first = orig[0]
+if "kube-proxy" in first:
+    exec_tokens = orig
+else:
+    exec_tokens = ["kube-proxy"] + orig
 
-        j = i + 1
-        while j < scan_limit:
-            lj = lines[j]
-            if try_indent is None and lj.lstrip().startswith("try:"):
-                try_indent = indent_of(lj)
-            elif try_indent is not None:
-                if indent_of(lj) == try_indent and lj.lstrip().startswith("finally:"):
-                    finally_idx = j
-                    break
-                if (lj.lstrip().startswith("async def ") or lj.lstrip().startswith("def ")) and indent_of(lj) <= indent_of(line):
-                    break
-            j += 1
+exec_str = " ".join(shlex.quote(t) for t in exec_tokens)
+wrapped = f"ulimit -n {NOFILE} || true; exec {exec_str}"
 
-        if try_indent and finally_idx is not None:
-            ex = [
-                try_indent + "except httpx.RemoteProtocolError as e:\n",
-                try_indent + f"    log.warning(\"{MARK}: %s\", e)\n",
-                try_indent + "    return\n",
-            ]
-            lines[finally_idx:finally_idx] = ex
-            patched += 1
-            i = finally_idx + len(ex) + 1
-            continue
-    i += 1
+patch = {
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "kube-proxy",
+          "command": ["sh","-c"],
+          "args": [wrapped],
+        }]
+      }
+    }
+  }
+}
 
-if patched == 0:
-    raise SystemExit("ERROR: No _stream() try/finally blocks found to patch.")
+print("[i] Applying patch: wrap kube-proxy with ulimit -n", NOFILE)
+subprocess.check_call([
+  "kubectl","-n",NS,"patch","ds",DS,
+  "--type=strategic",
+  "-p", json.dumps(patch)
+])
 
-main_path.write_text("".join(lines), encoding="utf-8")
-py_compile.compile(str(main_path), doraise=True)
-print(f"[OK] Patched main.py: streams_patched={patched}")
+print("[OK] Patched daemonset. Now rolling restart...")
 PY
 
-echo "[OK] Done."
-EOF
+kubectl -n "$NS" rollout restart ds/"$DS"
+kubectl -n "$NS" rollout status  ds/"$DS" --timeout=180s
 
-chmod +x /home/aconte/n8n-gitops/playwright-wrapper/patch_wrapper_ignore_remoteprotocol.sh
+echo
+echo "[OK] kube-proxy restarted. Current status:"
+kubectl -n "$NS" get pods -l k8s-app=kube-proxy -o wide

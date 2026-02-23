@@ -26,7 +26,6 @@ app = FastAPI(title="Playwright Wrapper (Transparent Proxy)", version="1.0.0")
 
 @app.get("/health")
 async def health():
-    # Used by Kubernetes liveness/readiness probes
     return {"ok": True}
 
 
@@ -116,8 +115,6 @@ def _get_namespace() -> str:
 
 
 def _httpx_timeouts(read_timeout: float) -> httpx.Timeout:
-    # In httpx: read=None disables the read timeout.
-    # Using read=0.0 would mean an immediate timeout, which breaks SSE/MCP streams.
     try:
         rt_val = float(read_timeout)
     except Exception:
@@ -134,6 +131,17 @@ def _httpx_timeouts(read_timeout: float) -> httpx.Timeout:
 def _is_mcp_path(path: str) -> bool:
     p = (path or "").lstrip("/")
     return p == "mcp" or p.startswith("mcp/")
+
+
+def _sticky_key_from_request(request: Request) -> str:
+    """
+    IMPORTANT:
+    - n8n may hit GET /mcp multiple times.
+    - If we always use workflowId/default, we reuse the same upstream MCP session,
+      which leads to upstream 409 conflicts (observed in logs).
+    - Therefore we honor ?session=... if provided, fallback to workflowId, else default.
+    """
+    return request.query_params.get("session") or request.query_params.get("workflowId") or "default"
 
 
 async def _ensure_mcp_initialized(si: SessionInfo) -> None:
@@ -198,19 +206,6 @@ def _playwright_container_spec() -> client.V1Container:
     cmd = (settings.playwright_command or "").strip() or None
     args = _split_args(settings.playwright_args)
 
-    # IMPORTANT:
-    # If PLAYWRIGHT_COMMAND=sh and PLAYWRIGHT_ARGS starts with -c/-lc, shlex.split()
-    # yields many tokens, but sh expects the command after -c/-lc as ONE string.
-    #
-    # Example (bad):
-    #   command: ["sh"]
-    #   args: ["-lc","ulimit","-n","65535","&&","exec","node",...]
-    #
-    # Example (good):
-    #   command: ["sh"]
-    #   args: ["-lc","ulimit -n 65535 && exec node ..."]
-    #
-    # Also normalize common quoted tokens (e.g. "'&&'", '"&&"', "'*'").
     if cmd in ("sh", "/bin/sh") and args:
         if args[0] in ("-c", "-lc") and len(args) > 2:
             toks: List[str] = []
@@ -231,8 +226,8 @@ def _playwright_container_spec() -> client.V1Container:
         command=[cmd] if cmd else None,
         args=args,
         ports=[client.V1ContainerPort(container_port=settings.playwright_port)],
-        security_context=None,  # set later
-        volume_mounts=None,  # set later
+        security_context=None,
+        volume_mounts=None,
     )
 
 
@@ -370,7 +365,6 @@ async def _create_pod_and_service(session_id: str, namespace: str) -> SessionInf
         target_url=target_url,
     )
 
-    # Wait readiness (TCP)
     try:
         await _tcp_wait(
             host=f"{svc_name}.{namespace}.svc",
@@ -402,8 +396,6 @@ async def create_session():
 
     si = await _create_pod_and_service(session_id=session_id, namespace=namespace)
 
-    # Initialize MCP so downstream calls do not need to manage mcp-session-id.
-    # Make it optional to ease troubleshooting of upstream Playwright MCP container.
     if MCP_AUTO_INIT:
         try:
             await _ensure_mcp_initialized(si)
@@ -436,30 +428,29 @@ async def _get_or_create_sticky_session_id_for(key: str) -> str:
 
 @app.api_route("/mcp", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def mcp_root(request: Request):
-    wf = request.query_params.get("workflowId") or "default"
-    sid = await _get_or_create_sticky_session_id_for(wf)
+    key = _sticky_key_from_request(request)
+    sid = await _get_or_create_sticky_session_id_for(key)
     return await proxy_any(session_id=sid, path="mcp", request=request)
 
 
-# Playwright MCP legacy SSE transport.
 @app.api_route("/sse", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def sse_root(request: Request, x_api_token: Optional[str] = Header(default=None)):
-    wf = request.query_params.get("workflowId") or "default"
-    sid = await _get_or_create_sticky_session_id_for(wf)
+    key = _sticky_key_from_request(request)
+    sid = await _get_or_create_sticky_session_id_for(key)
     return await proxy_any(session_id=sid, path="sse", request=request)
 
 
 @app.api_route("/sse/{subpath:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def sse_subpath(subpath: str, request: Request, x_api_token: Optional[str] = Header(default=None)):
-    wf = request.query_params.get("workflowId") or "default"
-    sid = await _get_or_create_sticky_session_id_for(wf)
+    key = _sticky_key_from_request(request)
+    sid = await _get_or_create_sticky_session_id_for(key)
     return await proxy_any(session_id=sid, path=f"sse/{subpath}", request=request)
 
 
 @app.api_route("/mcp/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def mcp_subpath(path: str, request: Request):
-    wf = request.query_params.get("workflowId") or "default"
-    sid = await _get_or_create_sticky_session_id_for(wf)
+    key = _sticky_key_from_request(request)
+    sid = await _get_or_create_sticky_session_id_for(key)
     return await proxy_any(session_id=sid, path=f"mcp/{path}", request=request)
 
 
@@ -506,25 +497,16 @@ async def proxy_any(session_id: str, path: str, request: Request):
     method = request.method.upper()
     headers = dict(request.headers)
 
-    # Build a stable external base URL (prefer forwarded headers, fallback to Host, then request.base_url)
     xf_proto = request.headers.get("x-forwarded-proto") or request.headers.get("x-forwarded-protocol")
     xf_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
     if xf_host:
         scheme = (xf_proto or getattr(request.url, "scheme", None) or "http").split(",")[0].strip()
         host = xf_host.split(",")[0].strip()
-        base_url = f"{scheme}://{host}/"  # WRAP_SSE_ENDPOINT_ABSOLUTE_V3
+        base_url = f"{scheme}://{host}/"
     else:
-        # Build a stable external base URL (prefer forwarded headers, fallback to Host, then request.base_url)
-            xf_proto = request.headers.get("x-forwarded-proto") or request.headers.get("x-forwarded-protocol")
-            xf_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
-            if xf_host:
-                scheme = (xf_proto or getattr(request.url, "scheme", None) or "http").split(",")[0].strip()
-                host = xf_host.split(",")[0].strip()
-                base_url = f"{scheme}://{host}/"  # WRAP_SSE_ENDPOINT_ABSOLUTE_V3
-            else:
-                base_url = str(request.base_url)  # WRAP_SSE_ENDPOINT_ABSOLUTE_V3
+        base_url = str(request.base_url)
 
-    # Force Host header to satisfy Playwright MCP allowed-hosts checks
+    # Force Host header for Playwright MCP allowed-hosts checks
     headers["host"] = UPSTREAM_HOST_HEADER
 
     # Remove hop-by-hop headers from incoming request
@@ -577,25 +559,7 @@ async def proxy_any(session_id: str, path: str, request: Request):
         payload = {"jsonrpc": "2.0", "id": rid, "result": {"alreadyInitialized": True}}
         return Response(content=json.dumps(payload).encode("utf-8"), status_code=200, media_type="application/json")
 
-    def _looks_like_already_initialized(text: str) -> bool:
-        try:
-            j = json.loads(text or "{}")
-            msg = (((j or {}).get("error") or {}).get("message") or "")
-        except Exception:
-            msg = ""
-        return "already initialized" in (msg or "").lower()
-
-    def _looks_like_not_initialized(text: str) -> bool:
-        # Covers upstream patterns; we already had "Server not initialized" before.
-        t = (text or "").lower()
-        return "server not initialized" in t
-
-    def _looks_like_session_not_found(text: str) -> bool:
-        t = (text or "").lower()
-        return "session not found" in t
-
     async def _reinit_mcp_and_retry(client_http: httpx.AsyncClient, stream: bool):
-        # Reset + init to get a fresh mcp-session-id then retry once.
         si.mcp_session_id = None
         await _ensure_mcp_initialized(si)
         if si.mcp_session_id:
@@ -612,46 +576,22 @@ async def proxy_any(session_id: str, path: str, request: Request):
                 req = client_http.build_request(method, upstream, headers=headers, content=body)
                 r = await client_http.send(req, stream=True)
 
+                # NEW: retry once on upstream 409 for MCP GET streams
+                if _is_mcp_path(path) and method == "GET" and r.status_code == 409 and not tried_reinit:
+                    tried_reinit = True
+                    try:
+                        await r.aclose()
+                    except Exception:
+                        pass
+                    r = await _reinit_mcp_and_retry(client_http, stream=True)
+
                 if r.status_code >= 400:
+                    detail = ""
                     try:
                         raw = await r.aread()
-                        text = raw.decode("utf-8", errors="replace")
+                        detail = raw.decode("utf-8", errors="replace").strip()
                     except Exception:
-                        text = ""
-                    detail = (text or "").strip()
-
-                    # Idempotent initialize for client
-                    if _is_mcp_path(path) and _looks_like_already_initialized(detail):
-                        return _client_initialize_ok(body)
-
-                    # If upstream lost MCP session, re-init and retry once
-                    if _is_mcp_path(path) and (r.status_code in (400, 404)) and (not tried_reinit) and (
-                        _looks_like_not_initialized(detail) or _looks_like_session_not_found(detail)
-                    ):
-                        tried_reinit = True
-                        try:
-                            await r.aclose()
-                        except Exception:
-                            pass
-                        r = await _reinit_mcp_and_retry(client_http, stream=True)
-
-                        if r.status_code >= 400:
-                            try:
-                                raw2 = await r.aread()
-                                text2 = raw2.decode("utf-8", errors="replace")
-                            except Exception:
-                                text2 = ""
-                            detail2 = (text2 or "").strip()
-                            if _is_mcp_path(path) and _looks_like_already_initialized(detail2):
-                                return _client_initialize_ok(body)
-                            out_headers = _strip_hop_by_hop(r.headers)
-                            return Response(
-                                content=(detail2 or "Upstream error"),
-                                status_code=r.status_code,
-                                media_type=(r.headers.get("content-type") or "text/plain"),
-                                headers=out_headers,
-                            )
-
+                        detail = ""
                     out_headers = _strip_hop_by_hop(r.headers)
                     return Response(
                         content=(detail[:500] if detail else "Upstream error"),
@@ -662,7 +602,7 @@ async def proxy_any(session_id: str, path: str, request: Request):
 
                 async def _stream():
                     try:
-                        first_chunk = True  # WRAP_SSE_ENDPOINT_ABSOLUTE_V3
+                        first_chunk = True
                         async for chunk in r.aiter_bytes():
                             if first_chunk:
                                 first_chunk = False
@@ -721,37 +661,20 @@ async def proxy_any(session_id: str, path: str, request: Request):
             async with httpx.AsyncClient(timeout=timeout) as client_http:
                 r = await client_http.request(method, upstream, headers=headers, content=body)
 
-                # Idempotent initialize for client
-                if _is_mcp_path(path) and r.status_code == 400:
-                    msg = ""
-                    try:
-                        j = r.json()
-                        msg = (((j or {}).get("error") or {}).get("message") or "")
-                    except Exception:
-                        msg = ""
-                    if "already initialized" in (msg or "").lower():
-                        return _client_initialize_ok(body)
-
-                # Retry once if upstream lost session / not initialized (non-stream response path)
-                if _is_mcp_path(path) and r.status_code in (400, 404):
-                    text = ""
-                    try:
-                        text = r.text or ""
-                    except Exception:
-                        text = ""
-                    if _looks_like_not_initialized(text) or _looks_like_session_not_found(text):
-                        si.mcp_session_id = None
-                        await _ensure_mcp_initialized(si)
-                        if si.mcp_session_id:
-                            headers["mcp-session-id"] = si.mcp_session_id
-                        r = await client_http.request(method, upstream, headers=headers, content=body)
+                # NEW: retry once on upstream 409 for MCP GET
+                if _is_mcp_path(path) and method == "GET" and r.status_code == 409:
+                    si.mcp_session_id = None
+                    await _ensure_mcp_initialized(si)
+                    if si.mcp_session_id:
+                        headers["mcp-session-id"] = si.mcp_session_id
+                    r = await client_http.request(method, upstream, headers=headers, content=body)
 
                 ct = (r.headers.get("content-type") or "").lower()
                 if "text/event-stream" in ct:
 
                     async def _stream():
                         try:
-                            first_chunk = True  # WRAP_SSE_ENDPOINT_ABSOLUTE_V5
+                            first_chunk = True
                             async for chunk in r.aiter_bytes():
                                 if first_chunk:
                                     first_chunk = False
