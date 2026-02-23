@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: playwright-wrapper
-  tag: "proxy-20260223-144753"
+  tag: "proxy-20260223-144120"
   pullPolicy: Never
 service:
   type: ClusterIP
