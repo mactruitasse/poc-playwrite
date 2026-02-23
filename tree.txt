@@ -1,0 +1,1146 @@
+.
+├── apps
+│   ├── argocd
+│   └── n8n
+│       ├── application.yaml
+│       ├── values-prod.yaml
+│       ├── values-prod.yaml.bak.20260216160941
+│       ├── values-prod.yaml.bak.20260216160941.bak.20260216173044
+│       ├── values-prod.yaml.bak.20260216173044
+│       ├── values-prod.yaml.bak.20260217093054
+│       ├── values-prod.yaml.bak.20260217094232
+│       ├── values-prod.yaml.bak.20260217101500
+│       ├── values-prod.yaml.bak.20260220-093051
+│       ├── values-prod.yaml.bak.20260220-093504
+│       ├── values-prod.yaml.bak.20260220-093634
+│       ├── values-prod.yaml.bak.20260220-093844
+│       ├── values-prod.yaml.bak.20260220-113012
+│       ├── values-prod.yaml.bak.20260220-113255
+│       ├── values-prod.yaml.bak.20260220-114405
+│       ├── values-prod.yaml.bak.20260220-114549
+│       ├── values-prod.yaml.bak.20260220-121511
+│       ├── values-prod.yaml.bak.20260223-090529
+│       ├── values-prod.yaml.bak.20260223-100022
+│       ├── values-prod.yaml.bak.20260223-105433
+│       ├── values-prod.yaml.bak.20260223-112534
+│       ├── values-prod.yaml.bak.20260223-142654
+│       ├── values-prod.yaml.bak.20260223-142818
+│       ├── values-prod.yaml.bak.20260223-143622
+│       ├── values-prod.yaml.bak.20260223-144125
+│       ├── values-prod.yaml.bak.20260223-144757
+│       ├── values-prod.yaml.bak.20260223-145454
+│       ├── values-prod.yaml.bak.20260223-150454
+│       ├── values-prod.yaml.bak.20260223-151353
+│       └── values-prod.yaml.bak.20260223-151922
+├── argocd-ingress.yaml
+├── backup_script_fix
+│   ├── script.sh.20260217-142406.bak
+│   ├── script.sh.20260217-142502.bak
+│   ├── script.sh.20260217-142540.bak
+│   └── script.sh.20260217-142713.bak
+├── charts
+│   ├── apps
+│   │   └── n8n
+│   │       ├── values-prod.yaml
+│   │       ├── values-prod.yaml.bak.20260216173044
+│   │       └── values-prod.yaml.bak.20260217093054
+│   └── n8n
+│       ├── Chart.lock
+│       ├── charts
+│       │   ├── minio
+│       │   │   ├── Chart.yaml
+│       │   │   ├── README.md
+│       │   │   ├── templates
+│       │   │   │   ├── ciliumnetworkpolicy.yaml
+│       │   │   │   ├── configmap.yaml
+│       │   │   │   ├── console-ingress.yaml
+│       │   │   │   ├── console-service.yaml
+│       │   │   │   ├── deployment.yaml
+│       │   │   │   ├── _helper_create_bucket.txt
+│       │   │   │   ├── _helper_create_policy.txt
+│       │   │   │   ├── _helper_create_svcacct.txt
+│       │   │   │   ├── _helper_create_user.txt
+│       │   │   │   ├── _helper_custom_command.txt
+│       │   │   │   ├── _helper_policy.tpl
+│       │   │   │   ├── _helpers.tpl
+│       │   │   │   ├── ingress.yaml
+│       │   │   │   ├── networkpolicy.yaml
+│       │   │   │   ├── NOTES.txt
+│       │   │   │   ├── poddisruptionbudget.yaml
+│       │   │   │   ├── post-job.yaml
+│       │   │   │   ├── pvc.yaml
+│       │   │   │   ├── secrets.yaml
+│       │   │   │   ├── securitycontextconstraints.yaml
+│       │   │   │   ├── serviceaccount.yaml
+│       │   │   │   ├── servicemonitor.yaml
+│       │   │   │   ├── service.yaml
+│       │   │   │   └── statefulset.yaml
+│       │   │   └── values.yaml
+│       │   ├── minio-5.4.0.tgz
+│       │   ├── playwright-wrapper
+│       │   │   ├── _backup
+│       │   │   │   ├── deployment.yaml.bak.20260216161829
+│       │   │   │   ├── deployment.yaml.bak.20260216162251
+│       │   │   │   ├── role.yaml.bak.20260216163237
+│       │   │   │   ├── role.yaml.bak.20260216163429
+│       │   │   │   └── role.yaml.bak.20260216163608
+│       │   │   ├── backups
+│       │   │   │   └── deployment.yaml.bak.20260217101500
+│       │   │   ├── Chart.yaml
+│       │   │   ├── templates
+│       │   │   │   ├── deployment.yaml
+│       │   │   │   ├── _helpers.tpl
+│       │   │   │   ├── rolebinding.yaml
+│       │   │   │   ├── role.yaml
+│       │   │   │   ├── serviceaccount.yaml
+│       │   │   │   └── service.yaml
+│       │   │   ├── values.yaml
+│       │   │   ├── values.yaml.bak.20260216173044
+│       │   │   ├── values.yaml.bak.20260217093054
+│       │   │   ├── values.yaml.bak.20260217101500
+│       │   │   ├── values.yaml.bak.20260217101819
+│       │   │   ├── values.yaml.bak.20260223-142654
+│       │   │   ├── values.yaml.bak.20260223-142818
+│       │   │   ├── values.yaml.bak.20260223-143622
+│       │   │   ├── values.yaml.bak.20260223-144125
+│       │   │   ├── values.yaml.bak.20260223-144757
+│       │   │   ├── values.yaml.bak.20260223-145454
+│       │   │   ├── values.yaml.bak.20260223-150454
+│       │   │   ├── values.yaml.bak.20260223-151353
+│       │   │   └── values.yaml.bak.20260223-151922
+│       │   ├── postgresql
+│       │   │   ├── charts
+│       │   │   │   └── common
+│       │   │   │       ├── Chart.yaml
+│       │   │   │       ├── README.md
+│       │   │   │       ├── templates
+│       │   │   │       │   ├── _affinities.tpl
+│       │   │   │       │   ├── _capabilities.tpl
+│       │   │   │       │   ├── _certs.tpl
+│       │   │   │       │   ├── _compatibility.tpl
+│       │   │   │       │   ├── _errors.tpl
+│       │   │   │       │   ├── _fips.tpl
+│       │   │   │       │   ├── _images.tpl
+│       │   │   │       │   ├── _ingress.tpl
+│       │   │   │       │   ├── _labels.tpl
+│       │   │   │       │   ├── _names.tpl
+│       │   │   │       │   ├── _resources.tpl
+│       │   │   │       │   ├── _secrets.tpl
+│       │   │   │       │   ├── _storage.tpl
+│       │   │   │       │   ├── _tplvalues.tpl
+│       │   │   │       │   ├── _utils.tpl
+│       │   │   │       │   ├── validations
+│       │   │   │       │   │   ├── _cassandra.tpl
+│       │   │   │       │   │   ├── _mariadb.tpl
+│       │   │   │       │   │   ├── _mongodb.tpl
+│       │   │   │       │   │   ├── _mysql.tpl
+│       │   │   │       │   │   ├── _postgresql.tpl
+│       │   │   │       │   │   ├── _redis.tpl
+│       │   │   │       │   │   └── _validations.tpl
+│       │   │   │       │   └── _warnings.tpl
+│       │   │   │       └── values.yaml
+│       │   │   ├── Chart.yaml
+│       │   │   ├── README.md
+│       │   │   ├── templates
+│       │   │   │   ├── backup
+│       │   │   │   │   ├── cronjob.yaml
+│       │   │   │   │   ├── networkpolicy.yaml
+│       │   │   │   │   └── pvc.yaml
+│       │   │   │   ├── extra-list.yaml
+│       │   │   │   ├── _helpers.tpl
+│       │   │   │   ├── NOTES.txt
+│       │   │   │   ├── primary
+│       │   │   │   │   ├── configmap.yaml
+│       │   │   │   │   ├── extended-configmap.yaml
+│       │   │   │   │   ├── initialization-configmap.yaml
+│       │   │   │   │   ├── metrics-configmap.yaml
+│       │   │   │   │   ├── metrics-svc.yaml
+│       │   │   │   │   ├── networkpolicy.yaml
+│       │   │   │   │   ├── pdb.yaml
+│       │   │   │   │   ├── preinitialization-configmap.yaml
+│       │   │   │   │   ├── servicemonitor.yaml
+│       │   │   │   │   ├── statefulset.yaml
+│       │   │   │   │   ├── svc-headless.yaml
+│       │   │   │   │   └── svc.yaml
+│       │   │   │   ├── prometheusrule.yaml
+│       │   │   │   ├── psp.yaml
+│       │   │   │   ├── read
+│       │   │   │   │   ├── extended-configmap.yaml
+│       │   │   │   │   ├── metrics-configmap.yaml
+│       │   │   │   │   ├── metrics-svc.yaml
+│       │   │   │   │   ├── networkpolicy.yaml
+│       │   │   │   │   ├── pdb.yaml
+│       │   │   │   │   ├── servicemonitor.yaml
+│       │   │   │   │   ├── statefulset.yaml
+│       │   │   │   │   ├── svc-headless.yaml
+│       │   │   │   │   └── svc.yaml
+│       │   │   │   ├── rolebinding.yaml
+│       │   │   │   ├── role.yaml
+│       │   │   │   ├── secrets.yaml
+│       │   │   │   ├── serviceaccount.yaml
+│       │   │   │   ├── tls-secrets.yaml
+│       │   │   │   └── update-password
+│       │   │   │       ├── job.yaml
+│       │   │   │       ├── new-secret.yaml
+│       │   │   │       └── previous-secret.yaml
+│       │   │   ├── values.schema.json
+│       │   │   └── values.yaml
+│       │   ├── postgresql-18.2.3.tgz
+│       │   ├── redis
+│       │   │   ├── charts
+│       │   │   │   └── common
+│       │   │   │       ├── Chart.yaml
+│       │   │   │       ├── README.md
+│       │   │   │       ├── templates
+│       │   │   │       │   ├── _affinities.tpl
+│       │   │   │       │   ├── _capabilities.tpl
+│       │   │   │       │   ├── _certs.tpl
+│       │   │   │       │   ├── _compatibility.tpl
+│       │   │   │       │   ├── _errors.tpl
+│       │   │   │       │   ├── _fips.tpl
+│       │   │   │       │   ├── _images.tpl
+│       │   │   │       │   ├── _ingress.tpl
+│       │   │   │       │   ├── _labels.tpl
+│       │   │   │       │   ├── _names.tpl
+│       │   │   │       │   ├── _resources.tpl
+│       │   │   │       │   ├── _secrets.tpl
+│       │   │   │       │   ├── _storage.tpl
+│       │   │   │       │   ├── _tplvalues.tpl
+│       │   │   │       │   ├── _utils.tpl
+│       │   │   │       │   ├── validations
+│       │   │   │       │   │   ├── _cassandra.tpl
+│       │   │   │       │   │   ├── _mariadb.tpl
+│       │   │   │       │   │   ├── _mongodb.tpl
+│       │   │   │       │   │   ├── _mysql.tpl
+│       │   │   │       │   │   ├── _postgresql.tpl
+│       │   │   │       │   │   ├── _redis.tpl
+│       │   │   │       │   │   └── _validations.tpl
+│       │   │   │       │   └── _warnings.tpl
+│       │   │   │       └── values.yaml
+│       │   │   ├── Chart.yaml
+│       │   │   ├── README.md
+│       │   │   ├── templates
+│       │   │   │   ├── configmap.yaml
+│       │   │   │   ├── extra-list.yaml
+│       │   │   │   ├── headless-svc.yaml
+│       │   │   │   ├── health-configmap.yaml
+│       │   │   │   ├── _helpers.tpl
+│       │   │   │   ├── master
+│       │   │   │   │   ├── application.yaml
+│       │   │   │   │   ├── pdb.yaml
+│       │   │   │   │   ├── psp.yaml
+│       │   │   │   │   ├── pvc.yaml
+│       │   │   │   │   ├── serviceaccount.yaml
+│       │   │   │   │   └── service.yaml
+│       │   │   │   ├── metrics-svc.yaml
+│       │   │   │   ├── networkpolicy.yaml
+│       │   │   │   ├── NOTES.txt
+│       │   │   │   ├── podmonitor.yaml
+│       │   │   │   ├── prometheusrule.yaml
+│       │   │   │   ├── replicas
+│       │   │   │   │   ├── application.yaml
+│       │   │   │   │   ├── hpa.yaml
+│       │   │   │   │   ├── pdb.yaml
+│       │   │   │   │   ├── serviceaccount.yaml
+│       │   │   │   │   └── service.yaml
+│       │   │   │   ├── rolebinding.yaml
+│       │   │   │   ├── role.yaml
+│       │   │   │   ├── scripts-configmap.yaml
+│       │   │   │   ├── secret-svcbind.yaml
+│       │   │   │   ├── secret.yaml
+│       │   │   │   ├── sentinel
+│       │   │   │   │   ├── hpa.yaml
+│       │   │   │   │   ├── node-services.yaml
+│       │   │   │   │   ├── pdb.yaml
+│       │   │   │   │   ├── ports-configmap.yaml
+│       │   │   │   │   ├── service.yaml
+│       │   │   │   │   └── statefulset.yaml
+│       │   │   │   ├── serviceaccount.yaml
+│       │   │   │   ├── servicemonitor.yaml
+│       │   │   │   ├── svc-external.yaml
+│       │   │   │   └── tls-secret.yaml
+│       │   │   ├── values.schema.json
+│       │   │   └── values.yaml
+│       │   └── redis-24.1.3.tgz
+│       ├── Chart.yaml
+│       ├── Chart.yaml.bak.20260216160413
+│       ├── Chart.yaml.bak.20260216160551
+│       ├── Chart.yaml.bak.20260216160941
+│       ├── LICENSE
+│       ├── README.md
+│       ├── RELEASE-NOTES.md
+│       ├── templates
+│       │   ├── configmap.yaml
+│       │   ├── deployment-mcp-webhook.yaml
+│       │   ├── deployment-webhook.yaml
+│       │   ├── deployment-worker.yaml
+│       │   ├── deployment.yaml
+│       │   ├── _helpers.tpl
+│       │   ├── hpa.yaml
+│       │   ├── ingress.yaml
+│       │   ├── NOTES.txt
+│       │   ├── pdb.yaml
+│       │   ├── playwright-wrapper-secret.yaml
+│       │   ├── pvc.yaml
+│       │   ├── secret.yaml
+│       │   ├── serviceaccount.yaml
+│       │   ├── servicemonitor.yaml
+│       │   ├── service.yaml
+│       │   ├── statefulset-worker.yaml
+│       │   └── statefulset.yaml
+│       ├── unittests
+│       │   ├── configmap_test.yaml
+│       │   ├── deployment-mcp-webhook_test.yaml
+│       │   ├── deployment_test.yaml
+│       │   ├── deployment-webhook_test.yaml
+│       │   ├── deployment-worker_test.yaml
+│       │   ├── hpa_test.yaml
+│       │   ├── ingress_test.yaml
+│       │   ├── notes_test.yaml
+│       │   ├── pdb_test.yaml
+│       │   ├── pvc_test.yaml
+│       │   ├── secret_test.yaml
+│       │   ├── serviceaccount_test.yaml
+│       │   ├── servicemonitor_test.yaml
+│       │   ├── service_test.yaml
+│       │   ├── __snapshot__
+│       │   │   ├── configmap_test.yaml.snap
+│       │   │   ├── deployment-mcp-webhook_test.yaml.snap
+│       │   │   ├── deployment_test.yaml.snap
+│       │   │   ├── deployment-webhook_test.yaml.snap
+│       │   │   ├── deployment-worker_test.yaml.snap
+│       │   │   ├── hpa_test.yaml.snap
+│       │   │   ├── ingress_test.yaml.snap
+│       │   │   ├── pvc_test.yaml.snap
+│       │   │   ├── secret_test.yaml.snap
+│       │   │   ├── serviceaccount_test.yaml.snap
+│       │   │   ├── servicemonitor_test.yaml.snap
+│       │   │   ├── service_test.yaml.snap
+│       │   │   ├── statefulset_test.yaml.snap
+│       │   │   └── statefulset-worker_test.yaml.snap
+│       │   ├── statefulset_test.yaml
+│       │   └── statefulset-worker_test.yaml
+│       ├── values.schema.json
+│       ├── values.schema.json.bak.20260216160413
+│       ├── values.schema.json.bak.20260216160551
+│       ├── values.schema.json.bak.20260216160941
+│       ├── values.yaml
+│       ├── values.yaml.bak.20260216173044
+│       └── values.yaml.bak.20260217093054
+├── debug-20260217-142329
+│   ├── curl-ingress.body
+│   ├── curl-service.body
+│   ├── endpointslice-list.txt
+│   ├── endpoints-list.txt
+│   ├── ingressclass-list.txt
+│   ├── ingress-list.txt
+│   ├── ingress-nginx-controller-pods.txt
+│   ├── kube-context.txt
+│   ├── kube-version.txt
+│   ├── ns-n8n-prod.yaml
+│   ├── pf.pid
+│   ├── portforward.log
+│   ├── svc-list.txt
+│   ├── svc-n8n-prod.describe.txt
+│   └── svc-n8n-prod.yaml
+├── debug-20260217-142614
+│   ├── curl-ingress.body
+│   ├── curl-service.body
+│   ├── ingress-before.yaml
+│   ├── ingress-describe.txt
+│   ├── ingress-wide.txt
+│   ├── ingress.yaml
+│   ├── kube-context.txt
+│   ├── kubectl-apply.txt
+│   ├── kube-version.txt
+│   ├── pf.pid
+│   ├── portforward.log
+│   └── svc-n8n-prod.yaml
+├── fix.sh
+├── images
+│   └── n8n-playwright
+│       ├── Dockerfile
+│       └── Dockerfile.node20
+├── k8s-backup-20260217-105729
+│   └── deploy-playwright-wrapper.yaml
+├── k8s-backup-20260217-105857
+│   └── deploy-playwright-wrapper.yaml
+├── k8s-backup-20260217-110015
+│   └── deploy-playwright-wrapper.yaml
+├── k8s-backup-20260217-110246
+│   ├── deploy-playwright-wrapper-default.yaml
+│   └── deploy-playwright-wrapper-n8n-prod.yaml
+├── k8s-backup-20260217-112319
+│   ├── deploy-playwright-wrapper-default.yaml
+│   └── deploy-playwright-wrapper-n8n-prod.yaml
+├── k8s-backup-debug-20260217-112025
+│   ├── deploy-playwright-wrapper-default.yaml
+│   └── deploy-playwright-wrapper-n8n-prod.yaml
+├── k8s-backup-imagefix-20260217-110737
+│   ├── deploy-playwright-wrapper-default.yaml
+│   └── deploy-playwright-wrapper-n8n-prod.yaml
+├── k8s-backup-rollout-20260217-110557
+│   ├── deploy-playwright-wrapper-default.yaml
+│   └── deploy-playwright-wrapper-n8n-prod.yaml
+├── kind
+│   └── kind-config.yaml
+├── kube.sh
+├── n8n-gitops-bootstrap.zip
+├── playwright-wrapper
+│   ├── after_wf1.txt
+│   ├── after_wf2.txt
+│   ├── app
+│   │   ├── main.py
+│   │   ├── main.py.bak.20260220-110436
+│   │   ├── main.py.bak.20260220-110929
+│   │   ├── main.py.bak.20260220-111142
+│   │   ├── main.py.bak.20260220-112935
+│   │   ├── main.py.bak.20260220-113250
+│   │   ├── main.py.bak.deploy_v6
+│   │   ├── main.py.bak.deploy_v7
+│   │   ├── main.py.bak.deploy_v8
+│   │   ├── main.py.bak.deploy_v9
+│   │   ├── main.py.bak.ignore-remoteprotocol.20260223-085730
+│   │   ├── main.py.bak.remoteprotocol.1771844051
+│   │   ├── __pycache__
+│   │   │   ├── main.cpython-310.pyc
+│   │   │   ├── main.cpython-312.pyc
+│   │   │   └── settings.cpython-310.pyc
+│   │   └── settings.py
+│   ├── apply_noauth_rebuild_redeploy.sh
+│   ├── argo_vs_termination_playwright-wrapper_20260219_101000
+│   │   ├── 00_deploy_get.yaml
+│   │   ├── 01_deploy_describe.txt
+│   │   ├── 02_rs.txt
+│   │   ├── 03_pods.txt
+│   │   ├── 04_rollout_status.txt
+│   │   ├── 08_argocd_tracking_id.txt
+│   │   ├── 09_argocd_apps.txt
+│   │   └── 10_argocd_apps_yaml_grep.txt
+│   ├── _backup_compare_wf_pods_20260217-225109
+│   │   ├── pw_0.txt
+│   │   ├── pw_1.txt
+│   │   ├── pw_2.txt
+│   │   ├── pw_after_wf1_wide.txt
+│   │   └── pw_after_wf2_wide.txt
+│   ├── _backup_compare_wf_pods_20260217-232615
+│   │   ├── pw_0.txt
+│   │   ├── pw_1.txt
+│   │   ├── pw_2.txt
+│   │   ├── pw_after_wf1_wide.txt
+│   │   └── pw_after_wf2_wide.txt
+│   ├── backup_deploy_and_verify
+│   │   ├── deploy_and_verify.sh.20260218_144523.bak
+│   │   └── deploy_and_verify.sh.20260218_145131.bak
+│   ├── _backup_fix_dupe_host_20260217-201601
+│   │   └── main.py.bak
+│   ├── _backup_fix_imagepull_rs_20260217-214112
+│   │   ├── badpods.txt
+│   │   ├── bad_rs.txt
+│   │   ├── deploy.txt
+│   │   ├── pods.txt
+│   │   ├── pod_to_rs.txt
+│   │   ├── rs_n8n-prod-c945f7c6f.yaml
+│   │   ├── rs_n8n-prod-webhook-7b8644d8b5.yaml
+│   │   ├── rs_n8n-prod-worker-c94d9949c.yaml
+│   │   ├── rs_summary.txt
+│   │   └── rs.txt
+│   ├── _backup_fix_imagepull_rs_20260217-214132
+│   │   ├── badpods.txt
+│   │   ├── bad_rs.txt
+│   │   ├── deploy.txt
+│   │   ├── pods.txt
+│   │   ├── pod_to_rs.txt
+│   │   ├── rs_n8n-prod-c945f7c6f.yaml
+│   │   ├── rs_n8n-prod-webhook-7b8644d8b5.yaml
+│   │   ├── rs_n8n-prod-worker-c94d9949c.yaml
+│   │   ├── rs_summary.txt
+│   │   └── rs.txt
+│   ├── _backup_fix_nofile_20260218-092943
+│   │   ├── pods_before.txt
+│   │   ├── pw_limits_after.txt
+│   │   ├── pw_limits_before.txt
+│   │   ├── pw_logs_tail_before.txt
+│   │   ├── pw_pod_after.txt
+│   │   ├── pw_pods_before.txt
+│   │   ├── svc_before.txt
+│   │   ├── wrapper_deploy_after.yaml
+│   │   └── wrapper_deploy_before.yaml
+│   ├── _backup_fix_only_mcp_hostfix2_20260217-204717
+│   │   └── main.py.bak
+│   ├── _backup_fix_only_mcp_hostfix2_20260217-204855
+│   │   └── main.py.bak
+│   ├── _backup_fix_orphan_except_and_dead_return_20260217-205040
+│   │   ├── main.py.bak
+│   │   ├── patch_report.txt
+│   │   └── py_compile_after.err
+│   ├── _backup_fix_orphan_except_v2_20260217-205311
+│   │   ├── main.py.before_restore.bak
+│   │   ├── patch_report.txt
+│   │   ├── py_compile_after_patch.err
+│   │   └── py_compile_after_restore.err
+│   ├── _backup_fix_orphan_except_v2_20260217-205909
+│   │   ├── main.py.before_restore.bak
+│   │   ├── patch_report.txt
+│   │   ├── py_compile_after_patch.err
+│   │   └── py_compile_after_restore.err
+│   ├── _backup_fix_sse_clientlifetime_20260217-195317
+│   │   └── main.py.bak
+│   ├── _backup_fix_sse_host_20260217-200446
+│   │   └── main.py.bak
+│   ├── _backup_fix_sse_host_and_timeout_20260217-201209
+│   │   └── main.py.bak
+│   ├── _backup_fix_sse_mcp_20260217-193919
+│   │   └── main.py.bak
+│   ├── _backup_mcp_after_purge_20260217-222549
+│   │   ├── health.txt
+│   │   ├── pods_before.txt
+│   │   └── svc_before.txt
+│   ├── _backup_n8n_imagepull_cleanup_20260217-213357
+│   │   ├── badpods.txt
+│   │   ├── deploy.txt
+│   │   ├── describe_n8n-prod-c945f7c6f-bfjqg.txt
+│   │   ├── describe_n8n-prod-webhook-7b8644d8b5-gwrxc.txt
+│   │   ├── describe_n8n-prod-worker-c94d9949c-tcmmf.txt
+│   │   ├── pods.txt
+│   │   └── rs.txt
+│   ├── _backup_patch_proxy_any_20260217-212222
+│   │   ├── main.py.bak
+│   │   └── patch_report.txt
+│   ├── _backup_purge_restart_wait_20260217-223349
+│   │   ├── endpointslice_wide.txt
+│   │   ├── health_attempt_1.txt
+│   │   ├── pods_before.txt
+│   │   ├── pw_pods_before.txt
+│   │   ├── pw_svcs_before.txt
+│   │   ├── svc_before.txt
+│   │   ├── wrapper_deploy.yaml
+│   │   ├── wrapper_logs_tail.txt
+│   │   ├── wrapper_pod_describe.txt
+│   │   └── wrapper_svc.yaml
+│   ├── _backup_pw_allowed_hosts_20260217-202521
+│   │   └── settings.py.bak
+│   ├── _backup_pw_cleanup_20260217-213156
+│   │   ├── pods_before.txt
+│   │   ├── pods_to_delete.txt
+│   │   ├── svcs_before.txt
+│   │   └── svcs_to_delete.txt
+│   ├── _backup_recover_compile_and_clean_20260217-204238
+│   │   └── main.py.bak
+│   ├── _backup_remove_host_injection_20260217-203035
+│   │   └── main.py.bak
+│   ├── _backup_remove_mcp_hostfix2_20260217-203408
+│   │   └── main.py.bak
+│   ├── _backup_remove_mcp_hostfix2_safe_20260217-203625
+│   │   └── main.py.bak
+│   ├── _backup_sse_bodyguard_20260217-192301
+│   │   └── main.py.bak
+│   ├── _backup_sse_bodyguard_20260217-193008
+│   │   └── main.py.bak
+│   ├── _backup_sse_cleanup_20260217-193308
+│   │   └── main.py.bak
+│   ├── _backup_sse_cleanup2_20260217-193427
+│   │   └── main.py.bak
+│   ├── _backup_sse_indentfix_20260217-193204
+│   │   └── main.py.bak
+│   ├── _backup_sse_movebody_20260217-193525
+│   │   └── main.py.bak
+│   ├── _backup_sse_nobodyfix_20260217-190854
+│   │   └── main.py.bak
+│   ├── _backup_sse_nobodyfix_20260217-191028
+│   │   └── main.py.bak
+│   ├── _backup_sse_subpath_cleanup_20260217-194030
+│   │   └── main.py.bak
+│   ├── _backup_sse_subpath_cleanup_all_20260217-194128
+│   │   ├── main.py.bak
+│   │   └── __pycache__
+│   │       └── main.py.cpython-312.pyc
+│   ├── _backup_verify_1wf_1pod_20260217-223134
+│   │   ├── health.txt
+│   │   ├── pods_before.txt
+│   │   ├── pw_before.txt
+│   │   ├── pw_svc_before.txt
+│   │   └── svc_before.txt
+│   ├── _backup_verify_workflow_pod_20260217-222243
+│   │   ├── pw_newpods.log
+│   │   ├── pw_pods_before.yaml
+│   │   └── pw_svcs_before.yaml
+│   ├── _backup_wf_sticky_20260217-232526
+│   │   └── main.py.bak
+│   ├── _backup_wrapper_diag_20260217-222913
+│   │   ├── curl_health_clusterip.txt
+│   │   ├── curl_health_fqdn.txt
+│   │   ├── curl_health_podip.txt
+│   │   ├── deploy.yaml
+│   │   ├── dnscheck.txt
+│   │   ├── endpointslice.yaml
+│   │   ├── endpoints.yaml
+│   │   ├── pods_wide.txt
+│   │   ├── svc.yaml
+│   │   ├── wrapper_logs_tail.txt
+│   │   └── wrapper_pod_describe.txt
+│   ├── before.txt
+│   ├── _cleanup_backup
+│   │   ├── cleanup_20260218_171338.tar.gz
+│   │   └── cleanup_backup_20260217-190631.tar.gz
+│   ├── correct.sh
+│   ├── crashloop_debug_playwright-wrapper_20260219_101242
+│   │   ├── 00_pods.txt
+│   │   ├── 01_deploy_describe.txt
+│   │   ├── 02_pod_describe.txt
+│   │   ├── 03_logs_current.txt
+│   │   ├── 04_logs_previous.txt
+│   │   └── 05_container_statuses.json
+│   ├── ctr_retag_fix_playwright-wrapper_20260219_100421
+│   │   ├── 00_pods_before.txt
+│   │   ├── 01_deploy_before.yaml
+│   │   ├── 02_ctr_images_ls_before.txt
+│   │   ├── 03_ctr_tag.txt
+│   │   ├── 04_ctr_images_ls_after_tag.txt
+│   │   ├── 05_patch_pullpolicy.txt
+│   │   ├── 06_rollout_restart.txt
+│   │   ├── 07_rollout_status.txt
+│   │   └── 08_pods_after.txt
+│   ├── ctxfix_20260218_121723
+│   │   ├── docker_build.txt
+│   │   ├── dockerignore.txt
+│   │   ├── kind_load.txt
+│   │   ├── local_main_proof.txt
+│   │   ├── pod_main_proof.txt
+│   │   ├── pod.txt
+│   │   ├── pwd.txt
+│   │   ├── repo_ls.txt
+│   │   ├── rollout_restart.txt
+│   │   ├── rollout_status.txt
+│   │   └── set_image.txt
+│   ├── deploy_and_verify.sh
+│   ├── deploy_and_verify_v2.sh
+│   ├── deploy_verify_20260218_114931
+│   │   ├── docker_build.log
+│   │   ├── health.txt
+│   │   ├── kind_load.log
+│   │   ├── kubectl_rollout_restart.log
+│   │   ├── kubectl_rollout_status.log
+│   │   ├── kubectl_set_image.log
+│   │   ├── mcp_probe.txt
+│   │   ├── newest_es_line.txt
+│   │   ├── new_svc.txt
+│   │   ├── pw_command_args.txt
+│   │   ├── pw-ef776815b0cef2ad.yaml
+│   │   ├── pw_logs.txt
+│   │   ├── pw_pod_status.txt
+│   │   ├── pw_svcs_after.txt
+│   │   ├── pw_svcs_before.txt
+│   │   ├── selected_sid.txt
+│   │   ├── selected_targets.txt
+│   │   ├── sessions_raw.txt
+│   │   ├── sid_from_body.txt
+│   │   └── token_len.txt
+│   ├── deploy_verify_fixed_20260218_144245
+│   │   ├── deploy_and_verify.sh.before.bak
+│   │   ├── deploy_and_verify_v2.sh.before.bak
+│   │   ├── docker_build.log
+│   │   ├── kind_load.log
+│   │   ├── kubectl_rollout_restart.log
+│   │   ├── kubectl_rollout_status.log
+│   │   ├── kubectl_set_image.log
+│   │   ├── main.py.before.bak
+│   │   └── main.py.before.sha256
+│   ├── deploy_verify_fixed_20260218_144523
+│   │   ├── deploy_and_verify.sh.before.bak
+│   │   ├── deploy_and_verify_v2.sh.before.bak
+│   │   ├── docker_build.log
+│   │   ├── kind_load.log
+│   │   ├── kubectl_rollout_restart.log
+│   │   ├── kubectl_rollout_status.log
+│   │   ├── kubectl_set_image.log
+│   │   ├── main.py.before.bak
+│   │   └── main.py.before.sha256
+│   ├── deploy_verify_v2_20260218_115632
+│   │   ├── docker_build.log
+│   │   ├── es_all.txt
+│   │   ├── es_new_tail.txt
+│   │   ├── es_new.txt
+│   │   ├── events_tail80.txt
+│   │   ├── health.txt
+│   │   ├── kind_load.log
+│   │   ├── kubectl_rollout_restart.log
+│   │   ├── kubectl_rollout_status.log
+│   │   ├── kubectl_set_image.log
+│   │   ├── sessions_raw.txt
+│   │   ├── sessions_rc.txt
+│   │   ├── sid_from_body.txt
+│   │   ├── start_epoch.txt
+│   │   ├── token_len.txt
+│   │   ├── wrapper_logs_tail200.txt
+│   │   └── wrapper_pods.txt
+│   ├── diag_click_fixed_20260218_161233
+│   │   ├── 01_navigate.txt
+│   │   ├── 02_snapshot.txt
+│   │   ├── token_len.txt
+│   │   └── wrapper_pod.txt
+│   ├── diag_click_fixed_20260218_161512
+│   │   ├── 01_navigate.txt
+│   │   ├── 02_snapshot.txt
+│   │   ├── token_len.txt
+│   │   └── wrapper_pod.txt
+│   ├── diag_click_from_snapshot_20260218_162220
+│   │   ├── 01_click.txt
+│   │   ├── data.json
+│   │   ├── ref.txt
+│   │   ├── text.txt
+│   │   └── token_len.txt
+│   ├── diag_click_from_snapshot_20260218_162405
+│   │   ├── 01_click.txt
+│   │   ├── 02_snapshot_after_click.txt
+│   │   ├── data.json
+│   │   ├── ref.txt
+│   │   ├── snapshot_after_data.json
+│   │   ├── text.txt
+│   │   ├── token_len.txt
+│   │   └── verify_page_url.txt
+│   ├── diag_click_timeout_20260218_160839
+│   │   ├── 01_navigate.txt
+│   │   ├── 02_snapshot.txt
+│   │   ├── token_len.txt
+│   │   └── wrapper_pod.txt
+│   ├── diag_find_wrapper_20260218_163257
+│   │   ├── 00_run.log
+│   │   ├── 01_namespaces.txt
+│   │   ├── 02_deploy_allns.txt
+│   │   ├── 03_pods_allns.txt
+│   │   ├── 04_svc_allns.txt
+│   │   ├── 05_ing_allns.txt
+│   │   ├── 06_ep_allns.txt
+│   │   ├── 07_epslice_allns.txt
+│   │   ├── 10_grep_deploy.txt
+│   │   ├── 11_grep_pods.txt
+│   │   ├── 12_grep_svc.txt
+│   │   ├── 13_grep_ing.txt
+│   │   ├── 14_grep_endpoints.txt
+│   │   ├── 15_grep_epslice.txt
+│   │   └── 16_grep_pods_imagehint.txt
+│   ├── diag_from_n8n_pods_20260218_165457
+│   │   ├── 01_svc.txt
+│   │   ├── 02_pods_all.txt
+│   │   ├── from_n8n-prod-9c55b445d-f8z2w.txt
+│   │   └── from_n8n-prod-c945f7c6f-vkfm8.txt
+│   ├── diag_from_n8n_running_pods_20260218_165733
+│   │   ├── 00_pods_all.txt
+│   │   ├── 01_svc.txt
+│   │   ├── from_n8n-prod-9c55b445d-f8z2w.txt
+│   │   ├── from_n8n-prod-postgresql-0.txt
+│   │   ├── from_n8n-prod-redis-master-0.txt
+│   │   ├── from_n8n-prod-webhook-8cf88cd4b-nlg2c.txt
+│   │   └── from_n8n-prod-worker-7dcc77d9c8-tq6kf.txt
+│   ├── diag_n8n_inside_cluster_20260218_165003
+│   │   ├── 01_svc.txt
+│   │   ├── 02_epslice.txt
+│   │   ├── 03_pods.txt
+│   │   └── 10_incluster_test.txt
+│   ├── diag_n8n_mcp_test_20260218_163641
+│   │   ├── 01_k8s_inventory.txt
+│   │   ├── 02_wrapper_svc.yaml
+│   │   ├── 03_wrapper_epslice.yaml
+│   │   ├── 04_portforward.log
+│   │   ├── 10_health.txt
+│   │   ├── 20_mcp_initialize.txt
+│   │   └── 21_mcp_stream_probe.txt
+│   ├── diag_pf_20260218_163821
+│   │   ├── 01_svc.yaml
+│   │   ├── 02_endpoints.txt
+│   │   ├── 03_epslice.txt
+│   │   ├── 04_wrapper_pods.txt
+│   │   ├── 05_wrapper_pod_name.txt
+│   │   ├── 10_portforward.log
+│   │   └── 20_health.txt
+│   ├── diag_sessions_20260218_150213
+│   │   ├── post_sessions_response.txt
+│   │   ├── pw_latest.txt
+│   │   ├── pw_pod_cmdline.txt
+│   │   ├── pw_pod_describe.txt
+│   │   ├── pw_pod_listen.txt
+│   │   ├── pw_pod_local_http.txt
+│   │   ├── pw_pod_logs_tail200.txt
+│   │   ├── pw_pods.txt
+│   │   ├── pw_svc_http_from_curlpod.txt
+│   │   ├── pw_svcs.txt
+│   │   ├── token_len.txt
+│   │   ├── wrapper_env.txt
+│   │   ├── wrapper_logs_tail200.txt
+│   │   ├── wrapper_pod.txt
+│   │   └── wrapper_pod_wide.txt
+│   ├── Dockerfile
+│   ├── Dockerfile.playwright-server
+│   ├── dump_wrapper_code_20260218_121124
+│   │   ├── image.txt
+│   │   ├── main_py_dump.txt
+│   │   ├── openapi_excerpt.json
+│   │   └── pod.txt
+│   ├── fix_backup_20260218_101008
+│   │   └── main.py.before_fix.bak
+│   ├── fix_mainpy_20260218_143749
+│   │   ├── grep_mcp.txt
+│   │   ├── grep_proxy_any.txt
+│   │   ├── grep_sessions.txt
+│   │   ├── main.py.after.sha256
+│   │   ├── main.py.before.bak
+│   │   ├── main.py.before.sha256
+│   │   └── py_compile.txt
+│   ├── fix.sh
+│   ├── fixsyntax2_redeploy_playwright-wrapper_20260219_102436
+│   │   ├── 00_deploy_before.txt
+│   │   ├── 01_pods_before.txt
+│   │   └── main.py.before_restore
+│   ├── fixsyntax3_redeploy_playwright-wrapper_20260219_102754
+│   │   ├── 00_deploy_before.txt
+│   │   ├── 01_pods_before.txt
+│   │   ├── 02_py_compile.txt
+│   │   ├── 03_docker_build.txt
+│   │   ├── 04_kind_load.txt
+│   │   ├── 05_ctr_grep.txt
+│   │   ├── 06_set_image.txt
+│   │   ├── 07_pullpolicy.txt
+│   │   ├── 08_rollout_restart.txt
+│   │   ├── 09_rollout_status.txt
+│   │   ├── 10_pods_after.txt
+│   │   ├── 11_deploy_after.txt
+│   │   ├── 12_bad_pod_describe.txt
+│   │   ├── 13_bad_logs_current.txt
+│   │   ├── 14_bad_logs_prev.txt
+│   │   └── main.py.before_restore
+│   ├── fixsyntax_redeploy_playwright-wrapper_20260219_101556
+│   │   ├── 00_git_status.txt
+│   │   ├── 01_deploy_before.txt
+│   │   ├── 02_pods_before.txt
+│   │   └── main.py.bak
+│   ├── fixsyntax_redeploy_playwright-wrapper_20260219_101755
+│   │   ├── 00_git_status.txt
+│   │   ├── 01_deploy_before.txt
+│   │   ├── 02_pods_before.txt
+│   │   ├── 03_py_compile.txt
+│   │   ├── 04_docker_build.txt
+│   │   ├── 05_kind_load.txt
+│   │   ├── 06_set_image.txt
+│   │   ├── 07_patch_pullpolicy.txt
+│   │   ├── 08_rollout_restart.txt
+│   │   ├── 09_rollout_status.txt
+│   │   ├── 10_pods_after.txt
+│   │   ├── 11_deploy_after.txt
+│   │   └── main.py.bak
+│   ├── fix_ulimit_backup_20260218_113438
+│   │   └── main.py.bak
+│   ├── fix_wrapper_env_20260218_151050
+│   │   ├── create_session_resp.json
+│   │   ├── deploy_before.yaml
+│   │   ├── mcp_test.txt
+│   │   ├── pw_pod_args.txt
+│   │   ├── session_id.txt
+│   │   ├── wrapper_env_after.txt
+│   │   └── wrapper_pod.txt
+│   ├── imagepull_debug_playwright-wrapper_20260219_094303
+│   │   ├── 00_context.txt
+│   │   ├── 01_deploy_describe.txt
+│   │   ├── 02_pods.txt
+│   │   ├── 03_bad_pod_describe.txt
+│   │   ├── 04_pull_events_grep.txt
+│   │   ├── 05_container_statuses.json
+│   │   ├── 07_patch_imagepullpolicy.txt
+│   │   ├── 09_rollout_restart.txt
+│   │   ├── 10_rollout_status.txt
+│   │   ├── 11_pods_after.txt
+│   │   └── 12_bad_pod_describe_after.txt
+│   ├── k8s_debug_backups_20260218_093744
+│   │   ├── events_tail.txt
+│   │   ├── playwright-wrapper-85c765ddbc-lw67t_describe.txt
+│   │   ├── playwright-wrapper-85c765ddbc-lw67t_logs.txt
+│   │   ├── playwright-wrapper-85c765ddbc-lw67t_terminated_0.txt
+│   │   ├── playwright-wrapper-85c765ddbc-lw67t_wide.txt
+│   │   ├── playwright-wrapper-85c765ddbc-lw67t.yaml
+│   │   └── pw_pods_recent.txt
+│   ├── k8s_pw_debug_20260218_093907
+│   │   ├── curl_incluster.txt
+│   │   ├── pw-cfa20bbf48b4d847_describe.txt
+│   │   ├── pw-cfa20bbf48b4d847_endpoints.txt
+│   │   ├── pw-cfa20bbf48b4d847_logs.txt
+│   │   ├── pw-cfa20bbf48b4d847.svc.yaml
+│   │   └── pw-cfa20bbf48b4d847.yaml
+│   ├── k8s_pw_mcp_jsonrpc_20260218_094306
+│   │   └── curl_tests.txt
+│   ├── k8s_pw_mcp_only_20260218_094515
+│   │   ├── run.log
+│   │   ├── utu_mcp.sh
+│   │   └── utu.sh.backup
+│   ├── k8s_pw_mcp_test_20260218_094036
+│   │   └── curl_tests.txt
+│   ├── k8s_wrapper_mcp_test_20260218_101229
+│   │   └── run.log
+│   ├── _logs_mcp_20260217-234249.txt
+│   ├── log.txt
+│   ├── minimal_sse_fix_backup_20260218_101712
+│   │   └── main.py.bak
+│   ├── patch_backup_20260218_095722
+│   │   ├── main.py.bak
+│   │   ├── mcp_session_fix.patch
+│   │   └── settings.py.bak
+│   ├── patch_backup_20260218_100254
+│   │   └── main.py.bak
+│   ├── _patch_backups
+│   │   ├── main.py.20260218_145844.bak
+│   │   ├── main.py.20260218_151236.bak
+│   │   ├── settings.py.20260218_150354.bak
+│   │   └── settings.py.20260218_150603.bak
+│   ├── patch_redeploy_20260218_171047
+│   │   ├── deploy_before.yaml
+│   │   ├── docker_build.log
+│   │   ├── kind_load.log
+│   │   ├── kubectl_set_image.log
+│   │   ├── main.py.before.bak
+│   │   ├── py_compile.err
+│   │   ├── rollout_status.log
+│   │   └── svc.yaml
+│   ├── patch_shlc_backup_20260218_114234
+│   │   └── main.py.bak
+│   ├── patch_shlc_backup_20260218_114511
+│   │   └── main.py.bak
+│   ├── patch_wrapper_ignore_remoteprotocol.sh
+│   ├── prove_routes_20260218_120003
+│   │   ├── files_and_imports.txt
+│   │   ├── pod_image_cmd_args.txt
+│   │   ├── pod.txt
+│   │   ├── ps_uvicorn.txt
+│   │   └── routes.txt
+│   ├── prove_routes_v2_20260218_120246
+│   │   ├── files_and_imports.txt
+│   │   ├── http_probe.txt
+│   │   ├── pod_image_cmd_args.txt
+│   │   ├── pod.txt
+│   │   └── routes.txt
+│   ├── pw_auto_sid_20260218_113013
+│   │   ├── context.txt
+│   │   ├── endpointslice_pw_list_tail.txt
+│   │   ├── endpointslice_pw_list.txt
+│   │   ├── health_svc_attempt_1.txt
+│   │   ├── mcp_probe.txt
+│   │   ├── new_pw_svc_by_diff.txt
+│   │   ├── ns.txt
+│   │   ├── pw-71be73158482d68c_containers_excerpt.txt
+│   │   ├── pw-71be73158482d68c_endpointslice.yaml
+│   │   ├── pw-71be73158482d68c_events.txt
+│   │   ├── pw-71be73158482d68c_logs.txt
+│   │   ├── pw-71be73158482d68c_ready_summary.txt
+│   │   ├── pw-71be73158482d68c_svc.yaml
+│   │   ├── pw-71be73158482d68c_wide.txt
+│   │   ├── pw-71be73158482d68c.yaml
+│   │   ├── pw_svcs_after.txt
+│   │   ├── pw_svcs_before.txt
+│   │   ├── selected_pod.txt
+│   │   ├── selected_sid.txt
+│   │   ├── selected_svc.txt
+│   │   ├── sessions_response_raw.txt
+│   │   ├── sid_candidates.txt
+│   │   ├── token_len.txt
+│   │   ├── wrapper_endpointslice.yaml
+│   │   └── wrapper_svc.txt
+│   ├── pw_pod_inspect_20260218_111648
+│   │   └── pw-ef776815b0cef2ad.yaml
+│   ├── pw_session_inspect_20260218_111906
+│   ├── pw_wrapper_debug_20260218_172619
+│   │   ├── 00_deploy_describe.txt
+│   │   ├── 01_rollout_status.txt
+│   │   ├── 02_rollout_history.txt
+│   │   ├── 03_rs.txt
+│   │   ├── 04_pods.txt
+│   │   ├── 05_bad_pod_describe.txt
+│   │   ├── 06_bad_pod_logs.txt
+│   │   ├── 07_bad_pod_events.txt
+│   │   └── 08_new_rs_describe.txt
+│   ├── pw_wrapper_debug_20260219_093604
+│   │   ├── 00_deploy_describe.txt
+│   │   ├── 01_rollout_status.txt
+│   │   ├── 02_rollout_history.txt
+│   │   ├── 03_rs.txt
+│   │   ├── 04_pods.txt
+│   │   ├── 05_bad_pod_describe.txt
+│   │   ├── 06_bad_pod_logs.txt
+│   │   ├── 07_bad_pod_events.txt
+│   │   └── 08_new_rs_describe.txt
+│   ├── pw_wrapper_diag_20260218_102808
+│   │   ├── deploy_before.yaml
+│   │   ├── endpointslice.txt
+│   │   ├── endpoints.txt
+│   │   ├── health_attempt_1.txt
+│   │   ├── health_attempt_2.txt
+│   │   ├── prev_image.txt
+│   │   ├── rollout_restart.txt
+│   │   ├── rollout_status.txt
+│   │   ├── set_image.txt
+│   │   ├── sse_headers.txt
+│   │   ├── svc.txt
+│   │   └── token_ok.txt
+│   ├── pw_wrapper_diag_20260218_103032
+│   │   ├── debug_dump.txt
+│   │   ├── deploy_before.yaml
+│   │   ├── endpointslice.txt
+│   │   ├── endpoints.txt
+│   │   ├── health_attempt_1.txt
+│   │   ├── prev_image.txt
+│   │   ├── rollout_restart.txt
+│   │   ├── rollout_status.txt
+│   │   ├── set_image.txt
+│   │   ├── sse_headers.txt
+│   │   └── svc.txt
+│   ├── redeploy_nocache_20260218_121212
+│   │   ├── docker_build.txt
+│   │   ├── kind_load.txt
+│   │   ├── openapi_http.txt
+│   │   ├── pod.txt
+│   │   ├── rollout_restart.txt
+│   │   ├── rollout_status.txt
+│   │   ├── routes.txt
+│   │   └── set_image.txt
+│   ├── requirements.txt
+│   ├── restore_deploy_20260218_122322
+│   │   ├── candidates.tsv
+│   │   └── main.py.before.bak
+│   ├── restore_wide_20260218_141521
+│   │   ├── backup_dirs.txt
+│   │   ├── candidates_anypy.tsv
+│   │   ├── candidates_backups.tsv
+│   │   ├── candidates_mainpy.tsv
+│   │   ├── candidates_merged.tsv
+│   │   ├── candidates_top30.tsv
+│   │   ├── local_main_py_probe.txt
+│   │   └── main.py.before.bak
+│   ├── rollout_debug_20260218_152443
+│   │   ├── deploy.yaml
+│   │   ├── events.txt
+│   │   ├── new_pod.txt
+│   │   ├── pod_describe.txt
+│   │   ├── pod.json
+│   │   ├── pod_logs_previous_tail200.txt
+│   │   ├── pod_logs_tail200.txt
+│   │   ├── pods.txt
+│   │   ├── rollout_history.txt
+│   │   ├── rollout_status_20s.txt
+│   │   └── rs.txt
+│   ├── rollout_debug_playwright-wrapper_20260218_171841
+│   │   ├── 00_kubectl_version.txt
+│   │   ├── 01_deploy_get.yaml
+│   │   ├── 02_deploy_describe.txt
+│   │   ├── 03_rs_list.txt
+│   │   ├── 04_pods_list.txt
+│   │   ├── 05_events_ns_tail.txt
+│   │   └── 06_rs_by_ts.txt
+│   ├── rollout_debug_playwright-wrapper_20260218_172151
+│   │   ├── 00_context.txt
+│   │   ├── 01_contexts.txt
+│   │   ├── 03_deploy_get.yaml
+│   │   ├── 04_deploy_describe.txt
+│   │   ├── 05_rs_list.txt
+│   │   ├── 06_pods_list.txt
+│   │   ├── 07_events_tail.txt
+│   │   ├── 08_current_image.txt
+│   │   ├── 09_rollout_status.txt
+│   │   ├── 10_old_pod_describe.txt
+│   │   ├── 11_old_pod_events.txt
+│   │   ├── 14_portforward.log
+│   │   ├── 15_health.err
+│   │   ├── 15_health.json
+│   │   └── ns_detected.env
+│   ├── script1.sh
+│   ├── script.sh
+│   ├── sse_fix_backup_20260218_101544
+│   │   └── main.py.bak
+│   ├── test.sh
+│   ├── triage_20260218_112327
+│   │   ├── context.txt
+│   │   ├── health_podip.txt
+│   │   ├── health_svc_attempt_1.txt
+│   │   ├── new_pw_svc.txt
+│   │   ├── ns.txt
+│   │   ├── pw-dbc017fe3229751b_describe.txt
+│   │   ├── pw-dbc017fe3229751b_endpointslice.yaml
+│   │   ├── pw-dbc017fe3229751b_logs.txt
+│   │   ├── pw-dbc017fe3229751b_pw_pod.txt
+│   │   ├── pw-dbc017fe3229751b_sid.txt
+│   │   ├── pw-dbc017fe3229751b_svc.yaml
+│   │   ├── pw-dbc017fe3229751b_wide.txt
+│   │   ├── pw-dbc017fe3229751b.yaml
+│   │   ├── pw_svcs_after.txt
+│   │   ├── pw_svcs_before.txt
+│   │   ├── sessions_response_raw.txt
+│   │   ├── token_len.txt
+│   │   ├── wrapper_describe.txt
+│   │   ├── wrapper_endpointslice.yaml
+│   │   ├── wrapper_logs.txt
+│   │   ├── wrapper_podip.txt
+│   │   ├── wrapper_pod.txt
+│   │   ├── wrapper_pod_wide.txt
+│   │   └── wrapper_svc.txt
+│   ├── utu.sh
+│   ├── verify_kind_images_playwright-wrapper_20260219_100209
+│   │   ├── 00_nodes.txt
+│   │   ├── 01_pods.txt
+│   │   ├── 02_deploy.yaml
+│   │   ├── 03_bad_pod_describe.txt
+│   │   ├── 04_imagePullPolicy.txt
+│   │   ├── 06_ctr_images_ls.txt
+│   │   ├── 09_rollout_status.txt
+│   │   ├── 10_pods_after.txt
+│   │   ├── 11_bad_pod_describe_after.txt
+│   │   └── 12_bad_pod_statuses_after.json
+│   └── wrapper_triage_20260218_113804
+│       ├── clusterip.txt
+│       ├── context.txt
+│       ├── deploy_describe.txt
+│       ├── deploy_get.txt
+│       ├── endpointslice_ready_excerpt.txt
+│       ├── endpointslice.yaml
+│       ├── events_tail.txt
+│       ├── health_clusterip.txt
+│       ├── health_dns_attempt_1.txt
+│       ├── health_podip.txt
+│       ├── ns.txt
+│       ├── rs_tail.txt
+│       ├── svc_get.txt
+│       ├── wait_available.txt
+│       ├── wrapper_describe.txt
+│       ├── wrapper_logs.txt
+│       ├── wrapper_pod_get.txt
+│       └── wrapper_pod_ip.txt
+├── playwright-wrapper-test-20260217-114445.log
+├── playwright-wrapper-test-20260217-114546.log
+├── playwright-wrapper-test-20260217-114814.log
+├── playwright-wrapper-test-20260217-114840.log
+├── playwright-wrapper-test-20260217-115250.log
+├── README.md
+├── runner-inspect-20260217-115458
+│   ├── cmd-args-env.txt
+│   ├── logs.txt
+│   ├── pod.txt
+│   └── pod.yaml
+├── run.sh
+├── script-output.txt
+├── scripts
+│   └── vendor_n8n_chart.sh
+├── script.sh
+├── script.sh.bak.20260217-111341
+├── script.sh.bak.20260217-111342
+├── script.sh.bak.20260217-111343
+├── script.sh.bak.20260217-111344
+├── script.sh.bak.20260217-111345
+├── script.sh.bak.20260217-111346
+├── script.sh.bak.20260217-111347
+├── script.sh.bak.20260217-111454
+├── script.sh.bak.20260217-111546
+├── script.sh.bak.20260217-111623
+├── script.sh.bak.20260217-111846
+├── script.sh.bak.20260217-111934
+├── script.sh.bak.20260217-112112
+├── script.sh.bak.20260217-112319
+├── script.txt
+├── set_n8n_component_images.sh
+└── tree.txt
+
+159 directories, 984 files

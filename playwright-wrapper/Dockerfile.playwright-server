@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/playwright:v1.49.0-noble
+
+USER root
+
+# On ne fait rien d'autre que préparer les dossiers
+WORKDIR /app
+
+# On s'assure que les navigateurs sont installés (indispensable)
+RUN npx playwright install chromium
+
+# On donne les droits au cas où
+RUN chmod -R 777 /ms-playwright
+
+USER pwuser
+
+# On expose le port
+EXPOSE 8933
+
+# C'est ici qu'on fait l'installation "à la volée"
+# NPX va télécharger et lancer le serveur directement sans passer par une installation globale
+ENTRYPOINT ["npx", "-y", "@modelcontextprotocol/server-playwright", "--port", "8933"]

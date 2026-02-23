@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: playwright-wrapper
-  tag: "proxy-20260223-151917"
+  tag: "proxy-20260223-150449"
   pullPolicy: Never
 
 service:
