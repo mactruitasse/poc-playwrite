@@ -61,7 +61,7 @@ playwright-wrapper:
   enabled: true
   image:
     repository: playwright-wrapper
-    tag: "proxy-20260223-142818"
+    tag: 1.0.1-fix-sse-remoteprotocol-20260223-112533
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
