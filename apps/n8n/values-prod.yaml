@@ -10,6 +10,7 @@ postgresql:
     database: n8n
     username: n8n
     password: n8n-local-password
+    existingSecret: n8n-prod-postgresql
 redis:
   enabled: true
   architecture: standalone
@@ -84,3 +85,5 @@ ingress:
 # Force-disable ingress (override)
 ingress:
   enabled: false
+
+existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
