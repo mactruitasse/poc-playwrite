@@ -7,18 +7,22 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
+# Copie et installation des dépendances
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# Copie du code source
 COPY app/ /app/app/
 
-# Crée un user non-root et donne accès au dossier /app
+# Gestion de l'utilisateur non-root
 RUN addgroup --system app && adduser --system --ingroup app app \
-  && chown -R app:app /app
+    && chown -R app:app /app
 
 USER app
 
 EXPOSE 8080
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+# Utilisation directe de python pour lancer le script Flask
+CMD ["python", "app/main.py"]

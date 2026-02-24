@@ -2,8 +2,10 @@ image:
   repository: n8n-playwright-local
   tag: 2.2.4-pw1.49.0-fix4
   pullPolicy: IfNotPresent
+
 db:
   type: postgresdb
+
 postgresql:
   enabled: true
   auth:
@@ -11,12 +13,14 @@ postgresql:
     username: n8n
     password: n8n-local-password
     existingSecret: n8n-prod-postgresql
+
 redis:
   enabled: true
   architecture: standalone
   auth:
     enabled: true
     password: redis-local-password
+
 worker:
   mode: queue
   count: 1
@@ -24,6 +28,7 @@ worker:
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
     N8N_SECURE_COOKIE: 'false'
+
 webhook:
   mode: queue
   count: 1
@@ -31,6 +36,7 @@ webhook:
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
     N8N_SECURE_COOKIE: 'false'
+
 main:
   count: 1
   readinessProbe:
@@ -44,6 +50,7 @@ main:
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
     N8N_SECURE_COOKIE: 'false'
+
 ingress:
   enabled: true
   className: nginx
@@ -52,11 +59,13 @@ ingress:
     paths:
     - path: /
       pathType: Prefix
+
 nodes:
   external:
     allowAll: false
     packages: []
     reinstallMissingPackages: false
+
 playwright-wrapper:
   enabled: true
   image:
@@ -71,18 +80,16 @@ playwright-wrapper:
     apiTokenSecretKey: API_TOKEN
     targetNamespace: n8n-prod
     playwrightPodLabelKey: app
-    playwrightPodLabelValue: playwright-ephemeral
+    # Aligné pour tes recherches kubectl
+    playwrightPodLabelValue: playwright-worker
     playwrightMcpPort: '8933'
   rbac:
     create: true
+  # --- CORRECTION CRITIQUE ---
   permissions:
-    canCreatePods: false
+    canCreatePods: true # Permet au wrapper de spawn le worker
 
-# Disable ingress in default release to avoid host/path conflict with n8n-prod
-ingress:
-  enabled: false
-
-# Force-disable ingress (override)
+# Désactivation des ingress conflictuels
 ingress:
   enabled: false
 
