@@ -1,2 +1,0 @@
-NAME                                  READY   STATUS    RESTARTS   AGE   IP             NODE               NOMINATED NODE   READINESS GATES
-playwright-wrapper-669cd78d49-jrdnq   1/1     Running   0          33m   10.244.0.212   pw-control-plane   <none>           <none>

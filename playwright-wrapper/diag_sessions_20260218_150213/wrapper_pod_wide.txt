@@ -1,2 +1,0 @@
-NAME                                  READY   STATUS    RESTARTS   AGE     IP             NODE               NOMINATED NODE   READINESS GATES
-playwright-wrapper-7b6cbf77d4-l2cwq   1/1     Running   0          2m53s   10.244.0.176   pw-control-plane   <none>           <none>

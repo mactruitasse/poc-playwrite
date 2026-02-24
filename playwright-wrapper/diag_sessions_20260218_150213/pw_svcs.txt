@@ -1,7 +1,0 @@
-NAME                  TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE     SELECTOR
-pw-44cee798d125a895   ClusterIP   10.96.66.151    <none>        8933/TCP   16h     app=pw,sid=44cee798d125a895
-pw-6ea869a12b24e8e9   ClusterIP   10.96.248.72    <none>        8933/TCP   15h     app=pw,sid=6ea869a12b24e8e9
-pw-a3862cff22c56d53   ClusterIP   10.96.132.62    <none>        8933/TCP   5m16s   app=pw,sid=a3862cff22c56d53
-pw-b2a4c36b727a9f8b   ClusterIP   10.96.79.91     <none>        8933/TCP   5s      app=pw,sid=b2a4c36b727a9f8b
-pw-cfa20bbf48b4d847   ClusterIP   10.96.122.230   <none>        8933/TCP   15h     app=pw,sid=cfa20bbf48b4d847
-pw-ef776815b0cef2ad   ClusterIP   10.96.158.31    <none>        8933/TCP   4h51m   app=pw,sid=ef776815b0cef2ad

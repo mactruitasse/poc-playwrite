@@ -1,1 +1,0 @@
-sessions_kubectl_run_rc=0

@@ -1,4 +1,0 @@
-Forwarding from 127.0.0.1:18080 -> 8080
-Handling connection for 18080
-E0218 17:21:53.879642 2744639 portforward.go:413] "Unhandled Error" err="an error occurred forwarding 18080 -> 8080: error forwarding port 8080 to pod 76ba65bc405348018e95a4758e24edd50fa32eaa4e713159cbe229260d0758c3, uid : failed to execute portforward in network namespace \"/var/run/netns/cni-10c713e8-2af3-d610-ca15-84c2a3d4cb15\": failed to connect to localhost:8080 inside namespace \"76ba65bc405348018e95a4758e24edd50fa32eaa4e713159cbe229260d0758c3\", IPv4: dial tcp4 127.0.0.1:8080: connect: connection refused IPv6 dial tcp6 [::1]:8080: connect: connection refused "
-error: lost connection to pod

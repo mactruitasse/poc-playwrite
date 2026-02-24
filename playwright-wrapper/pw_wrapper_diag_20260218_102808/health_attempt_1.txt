@@ -1,4 +1,0 @@
-If you don't see a command prompt, try pressing enter.
-curl: (28) Failed to connect to playwright-wrapper.n8n-prod.svc.cluster.local port 8080 after 3001 ms: Timeout was reached
-pod "curltest-health-1" deleted
-pod n8n-prod/curltest-health-1 terminated (Error)

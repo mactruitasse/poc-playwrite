@@ -1,7 +1,0 @@
-NAME                  READY   STATUS      RESTARTS   AGE     IP             NODE               NOMINATED NODE   READINESS GATES
-pw-44cee798d125a895   1/1     Running     0          16h     10.244.0.37    pw-control-plane   <none>           <none>
-pw-6ea869a12b24e8e9   1/1     Running     0          15h     10.244.0.42    pw-control-plane   <none>           <none>
-pw-a3862cff22c56d53   1/1     Running     0          5m16s   10.244.0.174   pw-control-plane   <none>           <none>
-pw-b2a4c36b727a9f8b   1/1     Running     0          5s      10.244.0.179   pw-control-plane   <none>           <none>
-pw-cfa20bbf48b4d847   1/1     Running     0          15h     10.244.0.43    pw-control-plane   <none>           <none>
-pw-ef776815b0cef2ad   0/1     Completed   0          4h51m   10.244.0.83    pw-control-plane   <none>           <none>

@@ -1,4 +1,0 @@
-### CMD: kind load docker-image playwright-wrapper:proxyany-ssepost-fixsyntax-20260219_101755
-### DATE: 2026-02-19T10:17:56+01:00
-
-Image: "playwright-wrapper:proxyany-ssepost-fixsyntax-20260219_101755" with ID "sha256:3b00f07666cbd8e09a986339cf1f37d383e6ccbe9c49254d9d27e0aedfe37326" not yet present on node "kind-control-plane", loading...

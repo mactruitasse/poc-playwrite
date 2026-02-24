@@ -1,2 +1,0 @@
-NAME                  TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE     SELECTOR
-pw-0e959bcd3e913d76   ClusterIP   10.96.178.20   <none>        8933/TCP   3m17s   app=pw,sid=0e959bcd3e913d76

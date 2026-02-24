@@ -1,3 +1,0 @@
-NAME                                  READY   STATUS             RESTARTS        AGE     IP             NODE               NOMINATED NODE   READINESS GATES   LABELS
-playwright-wrapper-766688565c-9frkj   0/1     CrashLoopBackOff   5 (2m36s ago)   5m38s   10.244.0.196   pw-control-plane   <none>           <none>            app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper,pod-template-hash=766688565c
-playwright-wrapper-7b8b4cbb8b-tkkft   1/1     Running            0               11m     10.244.0.190   pw-control-plane   <none>           <none>            app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper,pod-template-hash=7b8b4cbb8b

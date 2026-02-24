@@ -1,9 +1,0 @@
-NAME                 STATUS   AGE
-argocd               Active   2d2h
-default              Active   2d2h
-ingress-nginx        Active   2d2h
-kube-node-lease      Active   2d2h
-kube-public          Active   2d2h
-kube-system          Active   2d2h
-local-path-storage   Active   2d2h
-n8n-prod             Active   2d1h

@@ -1,7 +1,0 @@
-HTTP/1.1 200 OK
-date: Wed, 18 Feb 2026 09:28:26 GMT
-server: uvicorn
-content-length: 11
-content-type: application/json
-
-{"ok":true}pod "curltest-health-2" deleted

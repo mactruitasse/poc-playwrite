@@ -1,7 +1,0 @@
-sha256 944a040586e076e05adb678c049c5433c2fbee25ac5914b747570d46954bd43e /home/aconte/docker/playwright-wrapper/app/main.py
-decorator_count 1
-/sessions => MISSING
-create_session => MISSING
-delete_session => MISSING
-proxy_any => MISSING
-/mcp => FOUND

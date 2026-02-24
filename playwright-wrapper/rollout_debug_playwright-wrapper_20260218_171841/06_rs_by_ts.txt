@@ -1,3 +1,0 @@
-### CMD: kubectl -n default get rs -l app=playwright-wrapper -o jsonpath={range .items[*]}{.metadata.creationTimestamp}{"\t"}{.metadata.name}{"\t"}{.status.replicas}{"\t"}{.status.readyReplicas}{"\n"}{end}
-### DATE: 2026-02-18T17:18:42+01:00
-

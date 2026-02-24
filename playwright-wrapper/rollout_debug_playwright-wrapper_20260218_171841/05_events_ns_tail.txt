@@ -1,4 +1,0 @@
-### CMD: kubectl -n default get events --sort-by=.metadata.creationTimestamp
-### DATE: 2026-02-18T17:18:42+01:00
-
-No resources found in default namespace.

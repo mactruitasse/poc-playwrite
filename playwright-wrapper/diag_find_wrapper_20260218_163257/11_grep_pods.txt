@@ -1,1 +1,0 @@
-27:n8n-prod             playwright-wrapper-669cd78d49-jrdnq                 1/1     Running            0              27m    10.244.0.212   pw-control-plane   <none>           <none>

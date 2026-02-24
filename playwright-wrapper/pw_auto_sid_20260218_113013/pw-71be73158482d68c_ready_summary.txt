@@ -1,1 +1,0 @@
-[+] EndpointSlice ready summary (best-effort):       ready: false

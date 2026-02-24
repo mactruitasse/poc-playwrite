@@ -1,7 +1,0 @@
-HTTP/1.1 200 OK
-date: Wed, 18 Feb 2026 15:36:42 GMT
-server: uvicorn
-content-length: 67
-content-type: application/json
-
-{"jsonrpc": "2.0", "id": 1, "result": {"alreadyInitialized": true}}

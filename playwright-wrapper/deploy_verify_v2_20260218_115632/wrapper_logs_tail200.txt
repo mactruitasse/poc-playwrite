@@ -1,7 +1,0 @@
-INFO:     Started server process [1]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
-INFO:     10.244.0.1:48226 - "GET /health HTTP/1.1" 200 OK
-INFO:     10.244.0.163:37632 - "GET /health HTTP/1.1" 200 OK
-INFO:     10.244.0.164:57170 - "POST /sessions HTTP/1.1" 404 Not Found

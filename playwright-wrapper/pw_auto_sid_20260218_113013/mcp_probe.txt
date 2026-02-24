@@ -1,2 +1,0 @@
-curl: (7) Failed to connect to pw-71be73158482d68c.n8n-prod.svc.cluster.local port 8933 after 89 ms: Couldn't connect to server
-pod "curltest-mcp-71be73158482d68c-1771410679" deleted

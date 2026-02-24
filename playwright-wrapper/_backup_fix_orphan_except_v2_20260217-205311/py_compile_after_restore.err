@@ -1,4 +1,0 @@
-  File "app/main.py", line 399
-    except Exception:
-    ^^^^^^
-SyntaxError: invalid syntax

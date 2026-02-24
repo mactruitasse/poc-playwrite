@@ -1,5 +1,0 @@
-### CMD: kubectl get nodes -o wide
-### DATE: 2026-02-19T10:02:09+01:00
-
-NAME               STATUS   ROLES           AGE     VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION     CONTAINER-RUNTIME
-pw-control-plane   Ready    control-plane   2d19h   v1.35.0   172.19.0.3    <none>        Debian GNU/Linux 12 (bookworm)   6.8.0-94-generic   containerd://2.2.0

@@ -1,3 +1,0 @@
-NAMESPACE   NAME       CLASS   HOSTS              ADDRESS     PORTS   AGE
-argocd      argocd     nginx   argocd.localhost   localhost   80      2d2h
-n8n-prod    n8n-prod   nginx   n8n.localhost      localhost   80      26h

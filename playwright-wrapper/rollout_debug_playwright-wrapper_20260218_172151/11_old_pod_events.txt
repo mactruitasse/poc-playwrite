@@ -1,4 +1,0 @@
-### CMD: kubectl -n n8n-prod get events --field-selector involvedObject.name=n8n-prod-9c55b445d-f8z2w --sort-by=.metadata.creationTimestamp
-### DATE: 2026-02-18T17:21:51+01:00
-
-No resources found in n8n-prod namespace.

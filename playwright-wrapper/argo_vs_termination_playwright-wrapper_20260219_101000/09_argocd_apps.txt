@@ -1,5 +1,0 @@
-### CMD: kubectl -n argocd get applications.argoproj.io -o wide
-### DATE: 2026-02-19T10:10:31+01:00
-
-NAME       SYNC STATUS   HEALTH STATUS   REVISION                                   PROJECT
-n8n-prod   OutOfSync     Degraded        1e0b71e5c3b71d90ae9416075d9a3a4c616d3693   default

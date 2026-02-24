@@ -1,7 +1,0 @@
-==> 01_namespaces: get ns -o wide
-==> 02_deploy_allns: get deploy -A -o wide
-==> 03_pods_allns: get pods -A -o wide
-==> 04_svc_allns: get svc -A -o wide
-==> 05_ing_allns: get ingress -A -o wide
-==> 06_ep_allns: get endpoints -A -o wide
-==> 07_epslice_allns: get endpointslice -A -o wide

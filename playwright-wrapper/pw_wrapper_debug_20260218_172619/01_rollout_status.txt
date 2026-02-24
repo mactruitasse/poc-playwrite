@@ -1,4 +1,0 @@
-### CMD: kubectl -n n8n-prod rollout status deploy/playwright-wrapper --timeout=30s
-### DATE: 2026-02-18T17:26:19+01:00
-
-error: deployment "playwright-wrapper" exceeded its progress deadline

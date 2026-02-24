@@ -1,8 +1,0 @@
---- DNS (getent hosts playwright-wrapper)
-10.96.57.253    playwright-wrapper.n8n-prod.svc.cluster.local
-
---- HTTP /health
-
-
---- MCP tools/list
-

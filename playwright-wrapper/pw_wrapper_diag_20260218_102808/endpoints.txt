@@ -1,2 +1,0 @@
-NAME                 ENDPOINTS          AGE
-playwright-wrapper   10.244.0.97:8080   24h

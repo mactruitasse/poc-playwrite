@@ -1,5 +1,0 @@
-### CMD: kubectl version --client=true
-### DATE: 2026-02-18T17:18:41+01:00
-
-Client Version: v1.31.0
-Kustomize Version: v5.4.2

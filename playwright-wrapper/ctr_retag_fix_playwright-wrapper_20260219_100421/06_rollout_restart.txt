@@ -1,4 +1,0 @@
-### CMD: kubectl -n n8n-prod rollout restart deploy/playwright-wrapper
-### DATE: 2026-02-19T10:04:21+01:00
-
-deployment.apps/playwright-wrapper restarted

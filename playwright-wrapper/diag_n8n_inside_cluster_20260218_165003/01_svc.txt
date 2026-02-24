@@ -1,2 +1,0 @@
-NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE   SELECTOR
-playwright-wrapper   ClusterIP   10.96.57.253   <none>        8080/TCP   31h   app.kubernetes.io/instance=n8n-prod,app.kubernetes.io/name=playwright-wrapper

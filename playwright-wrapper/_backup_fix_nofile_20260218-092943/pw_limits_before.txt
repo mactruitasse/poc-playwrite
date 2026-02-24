@@ -1,4 +1,0 @@
-ulimit -n=1048576
-
---- /proc/1/limits (Max open files) ---
-Max open files            1048576              1048576              files     

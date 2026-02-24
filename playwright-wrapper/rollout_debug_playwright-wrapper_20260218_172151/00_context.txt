@@ -1,4 +1,0 @@
-### CMD: kubectl config current-context
-### DATE: 2026-02-18T17:21:51+01:00
-
-kind-pw

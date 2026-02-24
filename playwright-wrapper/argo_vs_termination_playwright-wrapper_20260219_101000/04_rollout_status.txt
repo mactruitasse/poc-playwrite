@@ -1,5 +1,0 @@
-### CMD: kubectl -n n8n-prod rollout status deploy/playwright-wrapper --timeout=30s
-### DATE: 2026-02-19T10:10:01+01:00
-
-Waiting for deployment "playwright-wrapper" rollout to finish: 1 old replicas are pending termination...
-error: timed out waiting for the condition
