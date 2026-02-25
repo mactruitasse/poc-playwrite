@@ -1,12 +1,9 @@
-# apps/n8n/values-prod.yaml
-
 image:
   repository: n8n-playwright-local
   tag: 2.2.4-pw1.49.0-fix4
-  pullPolicy: IfNotPresent
 
 db:
-  type: postgresdb
+  [cite_start]type: postgresdb # [cite: 50]
 
 postgresql:
   enabled: true
@@ -14,146 +11,66 @@ postgresql:
     database: n8n
     username: n8n
     password: n8n-local-password
-    existingSecret: n8n-prod-postgresql
+    [cite_start]existingSecret: n8n-prod-postgresql # [cite: 50]
 
 redis:
   enabled: true
   architecture: standalone
   auth:
     enabled: true
-    password: redis-local-password
+    [cite_start]password: redis-local-password # [cite: 50]
 
-# Probes globales (moins agressives au boot/migrations)
+# Probes globales ajustées pour Playwright
 livenessProbe:
-  initialDelaySeconds: 30
-  timeoutSeconds: 2
-  periodSeconds: 10
+  httpGet:
+    path: /health
+    port: 8933
+  [cite_start]initialDelaySeconds: 45 # Laisse le temps au navigateur de démarrer [cite: 50]
+  timeoutSeconds: 5
+  periodSeconds: 15
   failureThreshold: 6
 
 readinessProbe:
-  initialDelaySeconds: 20
-  timeoutSeconds: 2
-  periodSeconds: 10
-  failureThreshold: 12
+  httpGet:
+    path: /health
+    port: 8933
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+  periodSeconds: 15
+  failureThreshold: 3
 
-# InitContainer commun (attend PostgreSQL avant de lancer n8n)
 main:
   count: 1
-  initContainers:
-    - name: wait-for-postgres
-      image: postgres:16-alpine
-      imagePullPolicy: IfNotPresent
-      env:
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: n8n-prod-postgresql
-              key: password
-      command: ["sh", "-lc"]
-      args:
-        - |
-          echo "Waiting for Postgres (main)..."
-          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
-            sleep 2
-          done
-          echo "Postgres is ready."
-  # tu avais une readiness spécifique (on la garde)
-  readinessProbe:
-    httpGet:
-      path: /healthz/readiness
-      port: http
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 2
-    failureThreshold: 12
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-    N8N_SECURE_COOKIE: "false"
+    [cite_start]N8N_SECURE_COOKIE: "false" # [cite: 54]
 
 worker:
   mode: queue
   count: 1
-  concurrency: 5
-  initContainers:
-    - name: wait-for-postgres
-      image: postgres:16-alpine
-      imagePullPolicy: IfNotPresent
-      env:
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: n8n-prod-postgresql
-              key: password
-      command: ["sh", "-lc"]
-      args:
-        - |
-          echo "Waiting for Postgres (worker)..."
-          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
-            sleep 2
-          done
-          echo "Postgres is ready."
-  extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-    N8N_SECURE_COOKIE: "false"
+  [cite_start]concurrency: 5 # [cite: 54, 58]
 
 webhook:
   mode: queue
   count: 1
-  url: http://n8n.localhost
-  initContainers:
-    - name: wait-for-postgres
-      image: postgres:16-alpine
-      imagePullPolicy: IfNotPresent
-      env:
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: n8n-prod-postgresql
-              key: password
-      command: ["sh", "-lc"]
-      args:
-        - |
-          echo "Waiting for Postgres (webhook)..."
-          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
-            sleep 2
-          done
-          echo "Postgres is ready."
-  extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-    N8N_SECURE_COOKIE: "false"
-
-# Ingress (tu avais un doublon + conflit : on garde UNE seule définition, désactivée)
-ingress:
-  enabled: false
-
-nodes:
-  external:
-    allowAll: false
-    packages: []
-    reinstallMissingPackages: false
+  [cite_start]url: http://n8n.localhost # [cite: 58, 62]
 
 playwright-wrapper:
   enabled: true
   image:
     repository: n8n-playwright-local
     tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
-    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-    port: 8080
+    [cite_start]port: 8080 # [cite: 62]
   env:
-    apiTokenSecretName: playwright-wrapper-secret
-    apiTokenSecretKey: API_TOKEN
-    targetNamespace: n8n-prod
-    playwrightPodLabelKey: app
-    # Aligné pour tes recherches kubectl
-    playwrightPodLabelValue: playwright-worker
     playwrightMcpPort: "8933"
-  rbac:
-    create: true
-  permissions:
-    canCreatePods: true
+    [cite_start]playwrightPodLabelValue: playwright-worker # [cite: 63]
+  ingress:
+    enabled: true
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffering: "off" # Crucial pour MCP
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
 
-# ⚠️ Correction : ton fichier finissait par "n8n-prod-encryption-key-secret-v"
-# Or, dans tes pods, la variable vient de "n8n-prod-encryption-key-secret-v2".
-existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
+[cite_start]existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2 # [cite: 64]

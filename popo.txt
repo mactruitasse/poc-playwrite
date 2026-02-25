@@ -1,0 +1,463 @@
+{
+  "name": "playwright-server-local",
+  "version": "1.0.0",
+  "private": true,"dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.19.2",
+    "playwright": "1.49.0"
+  }
+}
+const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
+const { SSEServerTransport } = require("@modelcontextprotocol/sdk/server/sse.js");
+const { CallToolRequestSchema, ListToolsRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
+const { chromium } = require("playwright");
+const express = require("express");
+const crypto = require("crypto");
+
+const app = express();
+app.use(express.json({ limit: "5mb" }));
+
+let browser, context;
+
+// Initialisation asynchrone sécurisée
+(async () => {
+  try {
+    browser = await chromium.launch({ 
+      headless: true, 
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage', // CORRECTION 1 : Évite les crashs de mémoire en Docker
+        '--no-zygote'
+      ] 
+    });
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 720 }
+    });
+    console.log("🚀 Navigateur partagé prêt.");
+  } catch (e) {
+    console.error("❌ Erreur fatale Playwright:", e);
+    process.exit(1);
+  }
+})();
+
+function createMcpServer() {
+  const s = new Server(
+    { name: "playwright-worker", version: "1.0.0" },
+    { capabilities: { tools: {} } }
+  );
+
+  s.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [{
+      name: "browser_navigate",
+      description: "Naviguer vers une URL avec le contexte partagé",
+      inputSchema: {
+        type: "object",
+        properties: { url: { type: "string" } },
+        required: ["url"],
+      },
+    }],
+  }));
+
+  s.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name !== "browser_navigate") return { content: [{ type: "text", text: "Outil inconnu" }], isError: true };
+    const { url } = request.params.arguments || {};
+    
+    // CORRECTION 2 : Vérification du contexte avant usage
+    if (!context) return { content: [{ type: "text", text: "Navigateur non initialisé" }], isError: true };
+
+    const page = await context.newPage();
+    try {
+      console.log(`[ACTION] Navigation vers : ${url}`);
+      // On utilise networkidle pour être sûr que la page est chargée
+      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+      const title = await page.title();
+      return { content: [{ type: "text", text: `Succès : ${title}` }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `Erreur : ${e.message}` }], isError: true };
+    } finally {
+      await page.close();
+    }
+  });
+  return s;
+}
+
+const sessions = new Map();
+
+app.get("/sse", async (req, res) => {
+  const sessionId =
+    req.query.sessionId ||
+    req.query.session ||
+    crypto.randomBytes(8).toString("hex");
+
+  // ⚠️ NE PAS appeler res.writeHead / res.write ici :
+  // SSEServerTransport.start() le fera, sinon => ERR_HTTP_HEADERS_SENT
+  // On peut juste définir des headers AVANT l'envoi (setHeader ne "commit" pas la réponse)
+  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("Cache-Control", "no-cache");
+
+  const mcpServer = createMcpServer();
+
+  // Important: fournir une URL de messages qui inclut le sessionId
+  // (sinon, certains clients ne renvoient pas le sessionId)
+  const transport = new SSEServerTransport(`/messages?sessionId=${sessionId}`, res);
+
+  sessions.set(sessionId, { transport, server: mcpServer });
+
+  try {
+    await mcpServer.connect(transport);
+    console.log(`==> [SSE] Session connectée : ${sessionId}`);
+  } catch (e) {
+    console.error(`❌ Erreur session ${sessionId}:`, e);
+    sessions.delete(sessionId);
+    // on ne fait pas res.end() si le SDK a déjà touché la réponse
+  }
+
+  req.on("close", () => {
+    console.log(`==> [SSE] Client déconnecté : ${sessionId}`);
+    setTimeout(() => sessions.delete(sessionId), 60000); // 60s de grâce (au lieu de 5s)
+  });
+});
+
+app.post("/messages", async (req, res) => {
+  const sessionId = req.query.sessionId || req.query.session;
+
+  const sessionData = sessions.get(sessionId);
+  if (!sessionData) {
+    return res.status(400).send("Session introuvable");
+  }
+
+  try {
+    await sessionData.transport.handlePostMessage(req, res);
+  } catch (e) {
+    console.error("❌ Erreur message:", e);
+    // si le transport a déjà écrit dans la réponse, éviter de double-write
+    if (!res.headersSent) res.status(500).end();
+  }
+});
+
+app.listen(8933, "0.0.0.0", () => console.log(`📡 MCP Worker sur port 8933`));
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "n8n.fullname" . }}
+  labels:
+    {{- include "n8n.main.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+      {{- if and ($.Values.webhook.url) (and (eq $.Values.db.type "postgresdb") (eq $.Values.webhook.mode "queue")) }}
+      {{- $webhookUrl := $.Values.webhook.url | trimPrefix "http://" | trimPrefix "https://" | trimSuffix "/" }}
+        {{- if and ((gt (len $.Values.ingress.hosts) 0)) (ne $webhookUrl .host) }}
+    - host: {{ $webhookUrl | quote }}
+      http:
+        paths:
+        {{- end }}
+        {{- range .paths }}
+          - path: {{ .path }}webhook/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.webhook.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}webhook-test/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}form/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.webhook.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}form-test/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- if $.Values.webhook.mcp.enabled }}
+          - path: {{ .path }}mcp/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+              {{- if or (gt (int $.Values.webhook.count) 1) ($.Values.webhook.autoscaling.enabled) ($.Values.webhook.allNodes) }}
+                name: {{ include "n8n.mcp-webhook.fullname" $ }}
+              {{- else }}
+                name: {{ include "n8n.webhook.fullname" $ }}
+              {{- end }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}mcp-test/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+          - path: {{ .path }}rest/oauth2-credential/callback
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}static/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}webhook-waiting/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.webhook.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          - path: {{ .path }}form-waiting/
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "n8n.webhook.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "playwright-wrapper.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "playwright-wrapper.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "playwright-wrapper.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+# apps/n8n/values-prod.yaml
+
+image:
+  repository: n8n-playwright-local
+  tag: 2.2.4-pw1.49.0-fix4
+  pullPolicy: IfNotPresent
+
+db:
+  type: postgresdb
+
+postgresql:
+  enabled: true
+  auth:
+    database: n8n
+    username: n8n
+    password: n8n-local-password
+    existingSecret: n8n-prod-postgresql
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: redis-local-password
+
+# Probes globales (moins agressives au boot/migrations)
+livenessProbe:
+  initialDelaySeconds: 30
+  timeoutSeconds: 2
+  periodSeconds: 10
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 20
+  timeoutSeconds: 2
+  periodSeconds: 10
+  failureThreshold: 12
+
+# InitContainer commun (attend PostgreSQL avant de lancer n8n)
+main:
+  count: 1
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-prod-postgresql
+              key: password
+      command: ["sh", "-lc"]
+      args:
+        - |
+          echo "Waiting for Postgres (main)..."
+          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
+            sleep 2
+          done
+          echo "Postgres is ready."
+  # tu avais une readiness spécifique (on la garde)
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 12
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
+
+worker:
+  mode: queue
+  count: 1
+  concurrency: 5
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-prod-postgresql
+              key: password
+      command: ["sh", "-lc"]
+      args:
+        - |
+          echo "Waiting for Postgres (worker)..."
+          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
+            sleep 2
+          done
+          echo "Postgres is ready."
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
+
+webhook:
+  mode: queue
+  count: 1
+  url: http://n8n.localhost
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-prod-postgresql
+              key: password
+      command: ["sh", "-lc"]
+      args:
+        - |
+          echo "Waiting for Postgres (webhook)..."
+          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
+            sleep 2
+          done
+          echo "Postgres is ready."
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
+
+# Ingress (tu avais un doublon + conflit : on garde UNE seule définition, désactivée)
+ingress:
+  enabled: false
+
+nodes:
+  external:
+    allowAll: false
+    packages: []
+    reinstallMissingPackages: false
+
+playwright-wrapper:
+  enabled: true
+  image:
+    repository: n8n-playwright-local
+    tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  env:
+    apiTokenSecretName: playwright-wrapper-secret
+    apiTokenSecretKey: API_TOKEN
+    targetNamespace: n8n-prod
+    playwrightPodLabelKey: app
+    # Aligné pour tes recherches kubectl
+    playwrightPodLabelValue: playwright-worker
+    playwrightMcpPort: "8933"
+  rbac:
+    create: true
+  permissions:
+    canCreatePods: true
+
+# ⚠️ Correction : ton fichier finissait par "n8n-prod-encryption-key-secret-v"
+# Or, dans tes pods, la variable vient de "n8n-prod-encryption-key-secret-v2".
+existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
