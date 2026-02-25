@@ -135,8 +135,8 @@ nodes:
 playwright-wrapper:
   enabled: true
   image:
-    repository: playwright-wrapper
-    tag: latest
+    repository: n8n-playwright-local
+    tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
