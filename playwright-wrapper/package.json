@@ -1,0 +1,9 @@
+{
+  "name": "playwright-server-local",
+  "version": "1.0.0",
+  "private": true,"dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.19.2",
+    "playwright": "1.49.0"
+  }
+}

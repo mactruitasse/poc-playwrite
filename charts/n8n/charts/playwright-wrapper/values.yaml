@@ -56,3 +56,10 @@ serviceAccount:
 # C'est ici que l'autorisation de créer des Pods est activée
 permissions:
   canCreatePods: true # Changé de 'false' à 'true'
+
+workerCleanup:
+  enabled: true
+  schedule: "*/5 * * * *"
+  ttlMinutes: 15
+  # Image légère avec python + apk pour installer kubectl
+  image: "python:3.12-alpine"

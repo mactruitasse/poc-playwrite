@@ -7,9 +7,9 @@ COPY package.json ./
 RUN npm install @modelcontextprotocol/sdk express playwright
 
 # Copie du serveur corrigé
-COPY server.js ./
+COPY server.cjs ./
 
 # Port MCP
 EXPOSE 8933
 
-CMD ["node", "server.js"]
+CMD ["bash", "-lc", "ulimit -n 65535 || true; node /app/server.cjs"]

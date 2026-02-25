@@ -76,20 +76,22 @@ function createMcpServer() {
 const sessions = new Map();
 
 app.get("/sse", async (req, res) => {
-  const sessionId = req.query.sessionId || req.query.session || crypto.randomBytes(8).toString("hex");
-  
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",
-  });
+  const sessionId =
+    req.query.sessionId ||
+    req.query.session ||
+    crypto.randomBytes(8).toString("hex");
 
-  res.write(": welcome\n\n");
+  // ⚠️ NE PAS appeler res.writeHead / res.write ici :
+  // SSEServerTransport.start() le fera, sinon => ERR_HTTP_HEADERS_SENT
+  // On peut juste définir des headers AVANT l'envoi (setHeader ne "commit" pas la réponse)
+  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("Cache-Control", "no-cache");
 
   const mcpServer = createMcpServer();
-  // Le transport a besoin de l'URL relative pour que le client sache où POSTer
-  const transport = new SSEServerTransport("/messages", res); 
+
+  // Important: fournir une URL de messages qui inclut le sessionId
+  // (sinon, certains clients ne renvoient pas le sessionId)
+  const transport = new SSEServerTransport(`/messages?sessionId=${sessionId}`, res);
 
   sessions.set(sessionId, { transport, server: mcpServer });
 
@@ -98,23 +100,19 @@ app.get("/sse", async (req, res) => {
     console.log(`==> [SSE] Session connectée : ${sessionId}`);
   } catch (e) {
     console.error(`❌ Erreur session ${sessionId}:`, e);
-    res.end();
+    sessions.delete(sessionId);
+    // on ne fait pas res.end() si le SDK a déjà touché la réponse
   }
 
   req.on("close", () => {
     console.log(`==> [SSE] Client déconnecté : ${sessionId}`);
-    setTimeout(() => sessions.delete(sessionId), 5000); // Délai de grâce
+    setTimeout(() => sessions.delete(sessionId), 60000); // 60s de grâce (au lieu de 5s)
   });
 });
 
 app.post("/messages", async (req, res) => {
-  // On récupère le sessionId soit dans l'URL, soit on cherche la session correspondante
   const sessionId = req.query.sessionId || req.query.session;
-  
-  // Si le SDK n8n ne passe pas le sessionId dans l'URL du POST, 
-  // on peut essayer de retrouver la session via le transport (plus complexe)
-  // Mais ici, n8n suit normalement l'URL fournie par SSEServerTransport.
-  
+
   const sessionData = sessions.get(sessionId);
   if (!sessionData) {
     return res.status(400).send("Session introuvable");
@@ -124,7 +122,8 @@ app.post("/messages", async (req, res) => {
     await sessionData.transport.handlePostMessage(req, res);
   } catch (e) {
     console.error("❌ Erreur message:", e);
-    res.status(500).end();
+    // si le transport a déjà écrit dans la réponse, éviter de double-write
+    if (!res.headersSent) res.status(500).end();
   }
 });
 
