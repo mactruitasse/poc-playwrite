@@ -1,3 +1,5 @@
+# apps/n8n/values-prod.yaml
+
 image:
   repository: n8n-playwright-local
   tag: 2.2.4-pw1.49.0-fix4
@@ -21,24 +23,41 @@ redis:
     enabled: true
     password: redis-local-password
 
-worker:
-  mode: queue
-  count: 1
-  concurrency: 5
-  extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
-    N8N_SECURE_COOKIE: 'false'
+# Probes globales (moins agressives au boot/migrations)
+livenessProbe:
+  initialDelaySeconds: 30
+  timeoutSeconds: 2
+  periodSeconds: 10
+  failureThreshold: 6
 
-webhook:
-  mode: queue
-  count: 1
-  url: http://n8n.localhost
-  extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
-    N8N_SECURE_COOKIE: 'false'
+readinessProbe:
+  initialDelaySeconds: 20
+  timeoutSeconds: 2
+  periodSeconds: 10
+  failureThreshold: 12
 
+# InitContainer commun (attend PostgreSQL avant de lancer n8n)
 main:
   count: 1
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-prod-postgresql
+              key: password
+      command: ["sh", "-lc"]
+      args:
+        - |
+          echo "Waiting for Postgres (main)..."
+          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
+            sleep 2
+          done
+          echo "Postgres is ready."
+  # tu avais une readiness spécifique (on la garde)
   readinessProbe:
     httpGet:
       path: /healthz/readiness
@@ -48,17 +67,64 @@ main:
     timeoutSeconds: 2
     failureThreshold: 12
   extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: 'true'
-    N8N_SECURE_COOKIE: 'false'
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
 
+worker:
+  mode: queue
+  count: 1
+  concurrency: 5
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-prod-postgresql
+              key: password
+      command: ["sh", "-lc"]
+      args:
+        - |
+          echo "Waiting for Postgres (worker)..."
+          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
+            sleep 2
+          done
+          echo "Postgres is ready."
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
+
+webhook:
+  mode: queue
+  count: 1
+  url: http://n8n.localhost
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:16-alpine
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-prod-postgresql
+              key: password
+      command: ["sh", "-lc"]
+      args:
+        - |
+          echo "Waiting for Postgres (webhook)..."
+          until pg_isready -h n8n-prod-postgresql -p 5432 -U n8n -d n8n; do
+            sleep 2
+          done
+          echo "Postgres is ready."
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
+
+# Ingress (tu avais un doublon + conflit : on garde UNE seule définition, désactivée)
 ingress:
-  enabled: true
-  className: nginx
-  hosts:
-  - host: n8n.localhost
-    paths:
-    - path: /
-      pathType: Prefix
+  enabled: false
 
 nodes:
   external:
@@ -82,15 +148,12 @@ playwright-wrapper:
     playwrightPodLabelKey: app
     # Aligné pour tes recherches kubectl
     playwrightPodLabelValue: playwright-worker
-    playwrightMcpPort: '8933'
+    playwrightMcpPort: "8933"
   rbac:
     create: true
-  # --- CORRECTION CRITIQUE ---
   permissions:
-    canCreatePods: true # Permet au wrapper de spawn le worker
+    canCreatePods: true
 
-# Désactivation des ingress conflictuels
-ingress:
-  enabled: false
-
+# ⚠️ Correction : ton fichier finissait par "n8n-prod-encryption-key-secret-v"
+# Or, dans tes pods, la variable vient de "n8n-prod-encryption-key-secret-v2".
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
