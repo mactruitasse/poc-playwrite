@@ -1,6 +1,6 @@
 image:
   repository: n8n-playwright-local
-  tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
+  tag: 2.2.4-pw1.49.0-fix5
   pullPolicy: IfNotPresent
 
 db:
@@ -21,10 +21,11 @@ redis:
     enabled: true
     password: redis-local-password
 
+# --- Correction des Sondes (Port 8080 d'après tes logs Flask) ---
 livenessProbe:
   httpGet:
     path: /health
-    port: 8933
+    port: 8080
   initialDelaySeconds: 45
   timeoutSeconds: 5
   periodSeconds: 15
@@ -33,7 +34,7 @@ livenessProbe:
 readinessProbe:
   httpGet:
     path: /health
-    port: 8933
+    port: 8080
   initialDelaySeconds: 30
   timeoutSeconds: 5
   periodSeconds: 15
@@ -41,6 +42,7 @@ readinessProbe:
 
 main:
   count: 1
+  command: ["/usr/local/bin/n8n"] # Chemin absolu pour éviter le "not found"
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
     N8N_SECURE_COOKIE: "false"
@@ -49,10 +51,13 @@ worker:
   mode: queue
   count: 1
   concurrency: 5
+  command: ["/usr/local/bin/n8n"] # Chemin absolu
+  args: ["worker"]
 
 webhook:
   mode: queue
   count: 1
+  command: ["/usr/local/bin/n8n"] # Chemin absolu
   url: http://n8n.localhost
 
 playwright-wrapper:
@@ -62,14 +67,14 @@ playwright-wrapper:
     tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
   service:
     type: ClusterIP
-    port: 8080
+    port: 8080 # Port réel de Flask
   env:
     apiTokenSecretName: playwright-wrapper-secret
     apiTokenSecretKey: API_TOKEN
     targetNamespace: n8n-prod
     playwrightPodLabelKey: app
     playwrightPodLabelValue: playwright-worker
-    playwrightMcpPort: "8933"
+    playwrightMcpPort: "8080" # Alignement
   ingress:
     enabled: true
     annotations:

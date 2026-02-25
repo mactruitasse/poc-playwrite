@@ -1,69 +1,89 @@
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
-const { CallToolRequestSchema, ListToolsRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
-const { chromium } = require("playwright");
+const { 
+  ListToolsRequestSchema, 
+  CallToolRequestSchema 
+} = require("@modelcontextprotocol/sdk/types.js");
 const express = require("express");
 
 const app = express();
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json());
 
-let browser, context;
-
-(async () => {
-  try {
-    browser = await chromium.launch({ 
-      headless: true, 
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--no-zygote'] 
-    });
-    context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-    console.log("🚀 Navigateur prêt (Mode HTTP).");
-  } catch (e) {
-    console.error("❌ Erreur Playwright:", e);
-    process.exit(1);
+// 1. Initialisation du serveur MCP
+const server = new Server(
+  {
+    name: "n8n-playwright-worker",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
   }
-})();
-
-const mcpServer = new Server(
-  { name: "playwright-worker", version: "1.1.0" },
-  { capabilities: { tools: {} } }
 );
 
-mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{
-    name: "browser_navigate",
-    description: "Naviguer vers une URL",
-    inputSchema: {
-      type: "object",
-      properties: { url: { type: "string" } },
-      required: ["url"],
-    },
-  }],
-}));
-
-mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name !== "browser_navigate") return { content: [{ type: "text", text: "Outil inconnu" }], isError: true };
-  const { url } = request.params.arguments || {};
-  const page = await context.newPage();
-  try {
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-    return { content: [{ type: "text", text: `Succès : ${await page.title()}` }] };
-  } catch (e) {
-    return { content: [{ type: "text", text: `Erreur : ${e.message}` }], isError: true };
-  } finally {
-    await page.close();
-  }
+/**
+ * 2. Définition des outils (Tools)
+ * Ajoute ici tes outils Playwright personnalisés
+ */
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: "navigate_to",
+        description: "Naviguer vers une URL avec Playwright",
+        inputSchema: {
+          type: "object",
+          properties: {
+            url: { type: "string" },
+          },
+          required: ["url"],
+        },
+      }
+    ],
+  };
 });
 
-// Endpoint de santé indispensable pour Kubernetes
-app.get("/health", (req, res) => res.status(200).send("OK"));
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
 
-// Endpoint MCP Unifié
+  if (name === "navigate_to") {
+    // Logique Playwright ici
+    return {
+      content: [{ type: "text", text: `Navigation vers ${args.url} réussie` }],
+    };
+  }
+  throw new Error(`Outil non trouvé: ${name}`);
+});
+
+/**
+ * 3. Endpoint POST /mcp
+ * C'est ici qu'on remplace mcpServer.handleRequest par server.handlePayload
+ */
 app.post("/mcp", async (req, res) => {
   try {
-    const response = await mcpServer.handleRequest(req.body);
+    // handlePayload est la méthode standard pour traiter le JSON-RPC reçu via HTTP
+    const response = await server.handlePayload(req.body);
     res.json(response);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+  } catch (error) {
+    console.error("Erreur MCP:", error);
+    res.status(500).json({
+      jsonrpc: "2.0",
+      id: req.body.id || null,
+      error: {
+        code: -32603,
+        message: error.message,
+      },
+    });
   }
 });
 
-app.listen(8933, "0.0.0.0", () => console.log(`📡 MCP sur port 8933`));
+// Endpoint de santé (Healthcheck)
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
+// Démarrage du serveur sur le port 8080 (cohérent avec tes logs Flask/K8s)
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Serveur MCP Playwright démarré sur http://0.0.0.0:${PORT}`);
+});
