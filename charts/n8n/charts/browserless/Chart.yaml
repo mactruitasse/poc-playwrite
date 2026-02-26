@@ -1,0 +1,6 @@
+apiVersion: v2
+name: browserless
+description: Chrome Headless as a service
+type: application
+version: 0.1.0
+appVersion: "latest"

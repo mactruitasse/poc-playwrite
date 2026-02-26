@@ -21,7 +21,19 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- Correction des Sondes (Port 8080 d'après tes logs Flask) ---
+# --- Configuration Browserless (Nouveau) ---
+browserless:
+  enabled: true
+  image:
+    repository: browserless/chrome
+    tag: latest
+  service:
+    port: 3000
+  env:
+    MAX_CONCURRENT_SESSIONS: "10"
+    # TOKEN: "votre_token_si_besoin"
+
+# --- Correction des Sondes ---
 livenessProbe:
   httpGet:
     path: /health
@@ -42,39 +54,48 @@ readinessProbe:
 
 main:
   count: 1
-  command: ["/usr/local/bin/n8n"] # Chemin absolu pour éviter le "not found"
+  command: ["/usr/local/bin/n8n"]
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
     N8N_SECURE_COOKIE: "false"
+    # On pointe vers le service Kubernetes browserless sur le port 3000
+    BROWSERLESS_URL: "http://browserless:3000"
+    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
 
 worker:
   mode: queue
   count: 1
   concurrency: 5
-  command: ["/usr/local/bin/n8n"] # Chemin absolu
+  command: ["/usr/local/bin/n8n"]
   args: ["worker"]
+  extraEnvVars:
+    BROWSERLESS_URL: "http://browserless:3000"
+    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
 
 webhook:
   mode: queue
   count: 1
-  command: ["/usr/local/bin/n8n"] # Chemin absolu
+  command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
+  extraEnvVars:
+    BROWSERLESS_URL: "http://browserless:3000"
+    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
 
 playwright-wrapper:
-  enabled: true
+  enabled: false
   image:
     repository: n8n-playwright-local
     tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
   service:
     type: ClusterIP
-    port: 8080 # Port réel de Flask
+    port: 8080
   env:
     apiTokenSecretName: playwright-wrapper-secret
     apiTokenSecretKey: API_TOKEN
     targetNamespace: n8n-prod
     playwrightPodLabelKey: app
     playwrightPodLabelValue: playwright-worker
-    playwrightMcpPort: "8080" # Alignement
+    playwrightMcpPort: "8080"
   ingress:
     enabled: true
     annotations:
