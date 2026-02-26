@@ -6,7 +6,7 @@ image:
 db:
   type: postgresdb
 
-# --- Configuration INGRESS (Accès n8n.localhost) ---
+# --- CONFIGURATION INGRESS (Accès n8n.localhost) ---
 ingress:
   enabled: true
   className: nginx
@@ -36,7 +36,7 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- CONFIGURATION BROWSERLESS (TIMEOUT 20 MIN) ---
+# --- CONFIGURATION BROWSERLESS (SESSIONS 20 MIN) ---
 browserless:
   enabled: true
   image:
@@ -46,27 +46,32 @@ browserless:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
-    # Temps maximum d'une session : 20 minutes (1200000 ms)
+    # Temps max d'une session : 20 minutes (1200000 ms)
     TIMEOUT: "1200000"
-    # Timeout de connexion initial
     CONNECTION_TIMEOUT: "60000"
-    # Garder la session active même si le script n8n s'arrête brutalement
+    # Maintient le navigateur ouvert pour le debug
     KEEP_ALIVE: "true"
+    # Permet de voir les sessions sur le port 3001
+    WORKSPACE_DIR: "/home/browserless/workspace"
 
-# --- Variables d'environnement partagées ---
+# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES ---
 commonEnv: &commonEnv
+  # 1. AUTORISATIONS
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+  
+  # 2. RÉSEAU INTERNE
   BROWSERLESS_URL: "http://browserless:3000"
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
   
-  # Stabilité Task Runner (Désactivé pour éviter les crashs WebSocket internes)
+  # 3. FIX STABILITÉ TASK RUNNER
+  # Désactivé pour éviter les crashs WebSocket internes sur la v2.2.4
   N8N_TASK_RUNNERS_ENABLED: "false"
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
-  # Timeout de n8n pour attendre le runner (2 minutes)
   N8N_TASK_RUNNERS_TIMEOUT: "120000"
   
+  # 4. LOGS ET SÉCURITÉ
   N8N_LOG_LEVEL: "debug"
   N8N_SECURE_COOKIE: "false"
 
@@ -100,21 +105,33 @@ webhook:
   command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
-  resources: *resources
+  resources:
+    limits:
+      memory: "2Gi"
+    requests:
+      memory: "512Mi"
 
-# --- Playwright Wrapper (MCP) ---
+# --- PLAYWRIGHT WRAPPER (SERVEUR MCP) ---
+# Ce composant sert de pont MCP entre n8n et Browserless
 playwright-wrapper:
   enabled: true
   image:
     repository: n8n-playwright-local
     tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
   service:
+    type: ClusterIP
     port: 8080
   env:
     apiTokenSecretName: playwright-wrapper-secret
     apiTokenSecretKey: API_TOKEN
     targetNamespace: n8n-prod
+    # On aligne le timeout MCP sur Browserless
+    PLAYWRIGHT_TIMEOUT: "1200000"
+    BROWSERLESS_URL: "http://browserless:3000"
   ingress:
     enabled: true
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
 
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
