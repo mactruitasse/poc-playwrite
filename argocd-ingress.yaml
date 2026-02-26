@@ -5,8 +5,13 @@ metadata:
   namespace: argocd
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Indique à Nginx que le backend parle en HTTP simple
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    # Désactive la redirection forcée vers HTTPS (très important en local)
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # Autorise de gros payloads pour les déploiements
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
 spec:
   ingressClassName: nginx
   rules:
@@ -19,4 +24,4 @@ spec:
               service:
                 name: argocd-server
                 port:
-                  number: 80
+                  number: 8080
