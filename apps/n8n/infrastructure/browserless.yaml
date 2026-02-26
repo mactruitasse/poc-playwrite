@@ -14,6 +14,7 @@ spec:
       containers:
       - name: browserless
         image: browserless/chrome:latest
+        imagePullPolicy: IfNotPresent # Très important pour Kind
         ports: [{ containerPort: 3000 }]
 ---
 apiVersion: v1

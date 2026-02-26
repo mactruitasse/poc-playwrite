@@ -3,10 +3,12 @@ image:
   tag: 2.2.4-pw1.49.0-fix5
   pullPolicy: IfNotPresent
 
-db:
-  type: postgresdb
+# Correction : la clé est 'config', pas 'db' pour ce chart
+config:
+  database:
+    type: postgresdb
 
-# --- CONFIGURATION INGRESS (Accès n8n.localhost) ---
+# --- CONFIGURATION INGRESS ---
 ingress:
   enabled: true
   className: nginx
@@ -21,54 +23,56 @@ ingress:
         - path: /
           pathType: Prefix
 
+# --- INFRASTRUCTURE (Correction Secrets) ---
 postgresql:
   enabled: true
   auth:
     database: n8n
     username: n8n
-    password: n8n-local-password
-    existingSecret: n8n-prod-postgresql
+    # Utilisation du secret partagé défini dans secrets.yaml
+    existingSecret: "n8n-prod-postgresql"
+    secretKeys:
+      userPasswordKey: "password"
+      adminPasswordKey: "postgres-password"
 
 redis:
   enabled: true
   architecture: standalone
   auth:
     enabled: true
-    password: redis-local-password
+    # Si tu as un secret pour redis, utilise existingSecret ici aussi
+    password: redis-local-password 
 
-# --- CONFIGURATION BROWSERLESS (SESSIONS 20 MIN) ---
+# --- CONFIGURATION BROWSERLESS (FIXÉ) ---
 browserless:
   enabled: true
   image:
     repository: browserless/chrome
-    tag: latest
+    tag: 1.61-puppeteer # FIX: Tag fixe pour éviter le DNS timeout de 'latest'
+    pullPolicy: IfNotPresent 
   service:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
-    # Timeout de session : 20 minutes
     TIMEOUT: "1200000"
     CONNECTION_TIMEOUT: "60000"
     KEEP_ALIVE: "true"
     WORKSPACE_DIR: "/home/browserless/workspace"
 
-# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES (STABILITÉ n8n) ---
+# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES ---
 commonEnv: &commonEnv
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
   BROWSERLESS_URL: "http://browserless:3000"
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-  
-  # Désactivation des Task Runners pour éviter les crashs WebSocket internes (v2.2.4)
   N8N_TASK_RUNNERS_ENABLED: "false"
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
   N8N_TASK_RUNNERS_TIMEOUT: "120000"
-  
   N8N_LOG_LEVEL: "debug"
   N8N_SECURE_COOKIE: "false"
 
-# --- LIMITES DE RESSOURCES KUBERNETES ---
+# --- LIMITES DE RESSOURCES ---
 resources: &resources
   limits:
     memory: "4Gi"
@@ -104,26 +108,19 @@ webhook:
     requests:
       memory: "512Mi"
 
-# --- PLAYWRIGHT WRAPPER (SERVEUR MCP FASTAPI) ---
+# --- PLAYWRIGHT WRAPPER ---
 playwright-wrapper:
   enabled: true
   image:
-    # On utilise l'image que tu as buildée et chargée dans Kind
-    repository: playwright-wrapper 
+    repository: playwright-wrapper
     tag: v1
-    pullPolicy: IfNotPresent 
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8080
   env:
-    # URL pour le nouveau script Python (utilise ws:// pour le CDP de Playwright)
     BROWSERLESS_URL: "ws://browserless:3000"
     LOG_LEVEL: "INFO"
-  ingress:
-    enabled: true
-    annotations:
-      # Désactive le buffering pour le flux SSE (Server-Sent Events) du MCP
-      nginx.ingress.kubernetes.io/proxy-buffering: "off"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
 
-existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
+# Secret d'encryption (doit matcher secrets.yaml)
+existingEncryptionKeySecret: "n8n-prod-encryption-key-secret-v2"
