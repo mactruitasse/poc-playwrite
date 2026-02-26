@@ -6,13 +6,15 @@ image:
 db:
   type: postgresdb
 
-# --- Configuration INGRESS GLOBAL (Restaurée) ---
+# --- Configuration INGRESS GLOBAL (Accès n8n.localhost) ---
 ingress:
   enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
     - host: n8n.localhost
       paths:
@@ -34,16 +36,19 @@ redis:
     enabled: true
     password: redis-local-password
 
+# --- Configuration Browserless (Scraping) ---
 browserless:
   enabled: true
   image:
     repository: browserless/chrome
     tag: latest
+    pullPolicy: IfNotPresent
   service:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
 
+# --- Sondes de Santé ---
 livenessProbe:
   httpGet:
     path: /health
@@ -62,17 +67,22 @@ readinessProbe:
   periodSeconds: 15
   failureThreshold: 3
 
-# --- Configuration des composants n8n ---
+# --- Variables d'environnement partagées (Le Fix) ---
+commonEnv: &commonEnv
+  N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+  N8N_SECURE_COOKIE: "false"
+  BROWSERLESS_URL: "http://browserless:3000"
+  PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  # Autorisations pour le nœud Code
+  NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
+  NODE_FUNCTION_ALLOW_BUILTIN: "*"
+  # Fix pour le "Node execution failed" (Allocation mémoire)
+  N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "1024"
+
 main:
   count: 1
   command: ["/usr/local/bin/n8n"]
-  extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-    N8N_SECURE_COOKIE: "false"
-    BROWSERLESS_URL: "http://browserless:3000"
-    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-    NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
-    NODE_FUNCTION_ALLOW_BUILTIN: "*"
+  extraEnvVars: *commonEnv
 
 worker:
   mode: queue
@@ -80,23 +90,16 @@ worker:
   concurrency: 5
   command: ["/usr/local/bin/n8n"]
   args: ["worker"]
-  extraEnvVars:
-    BROWSERLESS_URL: "http://browserless:3000"
-    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-    NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
-    NODE_FUNCTION_ALLOW_BUILTIN: "*"
+  extraEnvVars: *commonEnv
 
 webhook:
   mode: queue
   count: 1
   command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
-  extraEnvVars:
-    BROWSERLESS_URL: "http://browserless:3000"
-    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-    NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
-    NODE_FUNCTION_ALLOW_BUILTIN: "*"
+  extraEnvVars: *commonEnv
 
+# --- Playwright Wrapper (MCP / Orchestration) ---
 playwright-wrapper:
   enabled: true
   image:
