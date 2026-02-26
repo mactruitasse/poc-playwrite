@@ -41,30 +41,10 @@ browserless:
   image:
     repository: browserless/chrome
     tag: latest
-    pullPolicy: IfNotPresent
   service:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
-
-# --- Sondes de Santé ---
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 45
-  timeoutSeconds: 5
-  periodSeconds: 15
-  failureThreshold: 6
-
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 30
-  timeoutSeconds: 5
-  periodSeconds: 15
-  failureThreshold: 3
 
 # --- Variables d'environnement partagées ---
 commonEnv: &commonEnv
@@ -74,11 +54,12 @@ commonEnv: &commonEnv
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
-  # Le processus Node demande 2Go
+  # FIX CRITIQUE : Mémoire du Runner
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
+  # FIX MODE EXECUTION : Utilise le mode 'own' pour isoler les crashs
+  N8N_EXECUTION_PROCESS: "own"
 
-# --- CONFIGURATION DES RESSOURCES (LE FIX) ---
-# On s'assure que Kubernetes autorise le pod à consommer plus que Node
+# --- CONFIGURATION DES RESSOURCES GLOBALES ---
 resources:
   limits:
     memory: "3Gi"
@@ -116,6 +97,11 @@ webhook:
   command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
+  resources:
+    limits:
+      memory: "2Gi"
+    requests:
+      memory: "512Mi"
 
 playwright-wrapper:
   enabled: true
@@ -137,6 +123,11 @@ playwright-wrapper:
     annotations:
       nginx.ingress.kubernetes.io/proxy-buffering: "off"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
 
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
+
+# --- Suppression des sondes port 8080 si n8n tourne sur 5678 (optionnel mais recommandé) ---
+livenessProbe:
+  initialDelaySeconds: 60
+readinessProbe:
+  initialDelaySeconds: 60
