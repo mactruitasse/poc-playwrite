@@ -1,13 +1,14 @@
+# --- Configuration de l'image n8n (Celle que tu as tagguée localement) ---
 image:
   repository: n8n-playwright-local
   tag: 2.2.4-pw1.49.0-fix5
-  pullPolicy: IfNotPresent
+  pullPolicy: IfNotPresent  # Crucial pour utiliser l'image injectée dans Kind
 
 service:
   type: ClusterIP
   port: 5678
 
-# --- Configuration Ingress (Crucial pour n8n.localhost) ---
+# --- Configuration Ingress ---
 ingress:
   enabled: true
   className: nginx
@@ -15,6 +16,8 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Désactive le SSL redirect en local pour éviter les boucles 301
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
   hosts:
     - host: n8n.localhost
       paths:
@@ -24,17 +27,23 @@ ingress:
 db:
   type: postgresdb
 
+# --- Base de données PostgreSQL ---
 postgresql:
   enabled: true
+  image:
+    pullPolicy: IfNotPresent
   auth:
     database: n8n
     username: n8n
     password: n8n-local-password
     existingSecret: n8n-prod-postgresql
 
+# --- Cache Redis ---
 redis:
   enabled: true
   architecture: standalone
+  image:
+    pullPolicy: IfNotPresent
   auth:
     enabled: true
     password: redis-local-password
@@ -45,12 +54,13 @@ browserless:
   image:
     repository: browserless/chrome
     tag: latest
+    pullPolicy: IfNotPresent # Force l'usage de l'image locale
   service:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
 
-# --- Sondes alignées sur le port 5678 ---
+# --- Sondes de santé ---
 livenessProbe:
   httpGet:
     path: /healthz
@@ -69,14 +79,18 @@ readinessProbe:
   periodSeconds: 15
   failureThreshold: 3
 
+# --- Variables communes (Browserless connection) ---
+# Utilisation du nom DNS interne de Kubernetes : <nom-service>.<namespace>
+commonEnv: &commonEnv
+  BROWSERLESS_URL: "http://browserless:3000"
+  PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  N8N_SECURE_COOKIE: "false"
+  N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+
 main:
   count: 1
   command: ["/usr/local/bin/n8n"]
-  extraEnvVars:
-    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-    N8N_SECURE_COOKIE: "false"
-    BROWSERLESS_URL: "http://browserless:3000"
-    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  extraEnvVars: *commonEnv
 
 worker:
   mode: queue
@@ -84,23 +98,16 @@ worker:
   concurrency: 5
   command: ["/usr/local/bin/n8n"]
   args: ["worker"]
-  extraEnvVars:
-    BROWSERLESS_URL: "http://browserless:3000"
-    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  extraEnvVars: *commonEnv
 
 webhook:
   mode: queue
   count: 1
   command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
-  extraEnvVars:
-    BROWSERLESS_URL: "http://browserless:3000"
-    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  extraEnvVars: *commonEnv
 
 playwright-wrapper:
   enabled: false # Désactivé car Browserless prend le relais
-  image:
-    repository: n8n-playwright-local
-    tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
 
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
