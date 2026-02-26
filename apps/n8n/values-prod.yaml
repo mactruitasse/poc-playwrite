@@ -36,7 +36,7 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- Configuration Browserless ---
+# --- CONFIGURATION BROWSERLESS (TIMEOUT 20 MIN) ---
 browserless:
   enabled: true
   image:
@@ -46,34 +46,34 @@ browserless:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
+    # Temps maximum d'une session : 20 minutes (1200000 ms)
+    TIMEOUT: "1200000"
+    # Timeout de connexion initial
+    CONNECTION_TIMEOUT: "60000"
+    # Garder la session active même si le script n8n s'arrête brutalement
+    KEEP_ALIVE: "true"
 
-# --- Variables d'environnement partagées (DEBUG + MÉMOIRE) ---
+# --- Variables d'environnement partagées ---
 commonEnv: &commonEnv
-  # Autorisations JS
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-  
-  # Réseau interne
   BROWSERLESS_URL: "http://browserless:3000"
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
   
-  # --- FIX STABILITÉ ---
-  # On désactive le runner externe qui cause les erreurs WebSocket
+  # Stabilité Task Runner (Désactivé pour éviter les crashs WebSocket internes)
   N8N_TASK_RUNNERS_ENABLED: "false"
-  # On booste la RAM du processus principal à 2Go
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
+  # Timeout de n8n pour attendre le runner (2 minutes)
+  N8N_TASK_RUNNERS_TIMEOUT: "120000"
   
-  # --- LOGS VERBEUX ---
   N8N_LOG_LEVEL: "debug"
-  N8N_LOG_OUTPUT: "console"
-  
   N8N_SECURE_COOKIE: "false"
 
 # --- LIMITES DE RESSOURCES KUBERNETES ---
 resources: &resources
   limits:
-    memory: "4Gi" # On laisse 4Go au Pod pour éviter que Docker ne le tue
+    memory: "4Gi"
     cpu: "1000m"
   requests:
     memory: "2Gi"
