@@ -1,49 +1,22 @@
-# --- Configuration de l'image n8n (Celle que tu as tagguée localement) ---
 image:
   repository: n8n-playwright-local
   tag: 2.2.4-pw1.49.0-fix5
-  pullPolicy: IfNotPresent  # Crucial pour utiliser l'image injectée dans Kind
-
-service:
-  type: ClusterIP
-  port: 5678
-
-# --- Configuration Ingress ---
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    # Désactive le SSL redirect en local pour éviter les boucles 301
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-  hosts:
-    - host: n8n.localhost
-      paths:
-        - path: /
-          pathType: Prefix
+  pullPolicy: IfNotPresent
 
 db:
   type: postgresdb
 
-# --- Base de données PostgreSQL ---
 postgresql:
   enabled: true
-  image:
-    pullPolicy: IfNotPresent
   auth:
     database: n8n
     username: n8n
     password: n8n-local-password
     existingSecret: n8n-prod-postgresql
 
-# --- Cache Redis ---
 redis:
   enabled: true
   architecture: standalone
-  image:
-    pullPolicy: IfNotPresent
   auth:
     enabled: true
     password: redis-local-password
@@ -54,43 +27,42 @@ browserless:
   image:
     repository: browserless/chrome
     tag: latest
-    pullPolicy: IfNotPresent # Force l'usage de l'image locale
   service:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
 
-# --- Sondes de santé ---
+# --- Configuration des Sondes (Port 8080) ---
 livenessProbe:
   httpGet:
-    path: /healthz
-    port: 5678
-  initialDelaySeconds: 60
+    path: /health
+    port: 8080
+  initialDelaySeconds: 45
   timeoutSeconds: 5
   periodSeconds: 15
   failureThreshold: 6
 
 readinessProbe:
   httpGet:
-    path: /healthz
-    port: 5678
+    path: /health
+    port: 8080
   initialDelaySeconds: 30
   timeoutSeconds: 5
   periodSeconds: 15
   failureThreshold: 3
 
-# --- Variables communes (Browserless connection) ---
-# Utilisation du nom DNS interne de Kubernetes : <nom-service>.<namespace>
-commonEnv: &commonEnv
-  BROWSERLESS_URL: "http://browserless:3000"
-  PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-  N8N_SECURE_COOKIE: "false"
-  N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-
+# --- Configuration des composants n8n ---
 main:
   count: 1
   command: ["/usr/local/bin/n8n"]
-  extraEnvVars: *commonEnv
+  extraEnvVars:
+    N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+    N8N_SECURE_COOKIE: "false"
+    BROWSERLESS_URL: "http://browserless:3000"
+    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+    # Autorisations pour le nœud Code
+    NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
+    NODE_FUNCTION_ALLOW_BUILTIN: "*"
 
 worker:
   mode: queue
@@ -98,16 +70,44 @@ worker:
   concurrency: 5
   command: ["/usr/local/bin/n8n"]
   args: ["worker"]
-  extraEnvVars: *commonEnv
+  extraEnvVars:
+    BROWSERLESS_URL: "http://browserless:3000"
+    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+    NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
+    NODE_FUNCTION_ALLOW_BUILTIN: "*"
 
 webhook:
   mode: queue
   count: 1
   command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
-  extraEnvVars: *commonEnv
+  extraEnvVars:
+    BROWSERLESS_URL: "http://browserless:3000"
+    PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+    NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
+    NODE_FUNCTION_ALLOW_BUILTIN: "*"
 
+# --- Playwright Wrapper (existant) ---
 playwright-wrapper:
-  enabled: false # Désactivé car Browserless prend le relais
+  enabled: true
+  image:
+    repository: n8n-playwright-local
+    tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
+  service:
+    type: ClusterIP
+    port: 8080
+  env:
+    apiTokenSecretName: playwright-wrapper-secret
+    apiTokenSecretKey: API_TOKEN
+    targetNamespace: n8n-prod
+    playwrightPodLabelKey: app
+    playwrightPodLabelValue: playwright-worker
+    playwrightMcpPort: "8080"
+  ingress:
+    enabled: true
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
 
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
