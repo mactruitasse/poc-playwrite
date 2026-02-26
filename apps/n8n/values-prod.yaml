@@ -46,7 +46,7 @@ browserless:
   enabled: true
   image:
     repository: browserless/chrome
-    tag: 1.61-puppeteer # On évite 'latest' pour le DNS de Kind
+    tag: v1 # On évite 'latest' pour le DNS de Kind
     pullPolicy: IfNotPresent 
   service:
     port: 3000
