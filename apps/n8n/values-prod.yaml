@@ -6,7 +6,7 @@ image:
 db:
   type: postgresdb
 
-# --- Configuration INGRESS GLOBAL (Accès n8n.localhost) ---
+# --- Configuration INGRESS GLOBAL ---
 ingress:
   enabled: true
   className: nginx
@@ -36,7 +36,6 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- Configuration Browserless ---
 browserless:
   enabled: true
   image:
@@ -67,22 +66,36 @@ readinessProbe:
   periodSeconds: 15
   failureThreshold: 3
 
-# --- Variables d'environnement partagées (FIX MÉMOIRE) ---
+# --- Variables d'environnement partagées ---
 commonEnv: &commonEnv
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
   N8N_SECURE_COOKIE: "false"
   BROWSERLESS_URL: "http://browserless:3000"
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-  # Autorisations pour le nœud Code
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
-  # FIX CRITIQUE : Augmentation de la mémoire de l'exécuteur de tâches
+  # Le processus Node demande 2Go
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
+
+# --- CONFIGURATION DES RESSOURCES (LE FIX) ---
+# On s'assure que Kubernetes autorise le pod à consommer plus que Node
+resources:
+  limits:
+    memory: "3Gi"
+    cpu: "1000m"
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
 
 main:
   count: 1
   command: ["/usr/local/bin/n8n"]
   extraEnvVars: *commonEnv
+  resources:
+    limits:
+      memory: "3Gi"
+    requests:
+      memory: "1Gi"
 
 worker:
   mode: queue
@@ -91,6 +104,11 @@ worker:
   command: ["/usr/local/bin/n8n"]
   args: ["worker"]
   extraEnvVars: *commonEnv
+  resources:
+    limits:
+      memory: "3Gi"
+    requests:
+      memory: "1Gi"
 
 webhook:
   mode: queue
@@ -99,7 +117,6 @@ webhook:
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
 
-# --- Playwright Wrapper (MCP / Orchestration) ---
 playwright-wrapper:
   enabled: true
   image:
