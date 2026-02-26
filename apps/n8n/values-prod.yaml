@@ -3,6 +3,24 @@ image:
   tag: 2.2.4-pw1.49.0-fix5
   pullPolicy: IfNotPresent
 
+service:
+  type: ClusterIP
+  port: 5678
+
+# --- Configuration Ingress (Crucial pour n8n.localhost) ---
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: n8n.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+
 db:
   type: postgresdb
 
@@ -21,7 +39,7 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- Configuration Browserless (Nouveau) ---
+# --- Configuration Browserless ---
 browserless:
   enabled: true
   image:
@@ -31,22 +49,21 @@ browserless:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
-    # TOKEN: "votre_token_si_besoin"
 
-# --- Correction des Sondes ---
+# --- Sondes alignées sur le port 5678 ---
 livenessProbe:
   httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 45
+    path: /healthz
+    port: 5678
+  initialDelaySeconds: 60
   timeoutSeconds: 5
   periodSeconds: 15
   failureThreshold: 6
 
 readinessProbe:
   httpGet:
-    path: /health
-    port: 8080
+    path: /healthz
+    port: 5678
   initialDelaySeconds: 30
   timeoutSeconds: 5
   periodSeconds: 15
@@ -58,7 +75,6 @@ main:
   extraEnvVars:
     N8N_COMMUNITY_PACKAGES_ENABLED: "true"
     N8N_SECURE_COOKIE: "false"
-    # On pointe vers le service Kubernetes browserless sur le port 3000
     BROWSERLESS_URL: "http://browserless:3000"
     PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
 
@@ -82,25 +98,9 @@ webhook:
     PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
 
 playwright-wrapper:
-  enabled: false
+  enabled: false # Désactivé car Browserless prend le relais
   image:
     repository: n8n-playwright-local
     tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
-  service:
-    type: ClusterIP
-    port: 8080
-  env:
-    apiTokenSecretName: playwright-wrapper-secret
-    apiTokenSecretKey: API_TOKEN
-    targetNamespace: n8n-prod
-    playwrightPodLabelKey: app
-    playwrightPodLabelValue: playwright-worker
-    playwrightMcpPort: "8080"
-  ingress:
-    enabled: true
-    annotations:
-      nginx.ingress.kubernetes.io/proxy-buffering: "off"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
 
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2

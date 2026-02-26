@@ -14,11 +14,6 @@ spec:
     spec:
       containers:
         - name: browserless
-          image: browserless/chrome:latest
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           ports:
             - containerPort: 3000
-          env:
-            - name: MAX_CONCURRENT_SESSIONS
-              value: "10"
-            - name: TOKEN
-              value: "votre_token_optionnel"
