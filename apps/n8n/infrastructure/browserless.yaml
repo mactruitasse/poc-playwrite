@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browserless
+  namespace: n8n-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: browserless }
+  template:
+    metadata:
+      labels: { app: browserless }
+    spec:
+      containers:
+      - name: browserless
+        image: browserless/chrome:latest
+        ports: [{ containerPort: 3000 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browserless
+  namespace: n8n-prod
+spec:
+  ports: [{ port: 3000, targetPort: 3000 }]
+  selector: { app: browserless }

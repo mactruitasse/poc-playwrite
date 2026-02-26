@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n-ingress
+  namespace: n8n-prod
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # Indispensable pour éviter les coupures pendant le scraping
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    # Pour le flux SSE du MCP
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  rules:
+  - host: n8n.localhost
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            # Vérifie bien que ton service s'appelle n8n ou n8n-prod
+            name: n8n 
+            port:
+              number: 5678
