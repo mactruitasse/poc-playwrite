@@ -1,3 +1,4 @@
+# Configuration de l'image personnalisée
 image:
   repository: n8n-playwright-local
   tag: 2.2.4-pw1.49.0-fix5
@@ -6,7 +7,8 @@ image:
 db:
   type: postgresdb
 
-# --- Configuration INGRESS GLOBAL (Accès n8n.localhost) ---
+# --- Configuration INGRESS (Accès n8n.localhost) ---
+# Ce bloc règle l'erreur 404 Nginx de ta première image
 ingress:
   enabled: true
   className: nginx
@@ -21,6 +23,7 @@ ingress:
         - path: /
           pathType: Prefix
 
+# --- Base de données et Cache ---
 postgresql:
   enabled: true
   auth:
@@ -36,7 +39,7 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- Configuration Browserless (Scraping) ---
+# --- Browserless (Moteur de rendu Chrome) ---
 browserless:
   enabled: true
   image:
@@ -67,7 +70,7 @@ readinessProbe:
   periodSeconds: 15
   failureThreshold: 3
 
-# --- Variables d'environnement partagées (FIX MÉMOIRE ICI) ---
+# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES (LE FIX MÉMOIRE) ---
 commonEnv: &commonEnv
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
   N8N_SECURE_COOKIE: "false"
@@ -76,9 +79,10 @@ commonEnv: &commonEnv
   # Autorisations pour le nœud Code
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
-  # FIX CRITIQUE : Augmentation de la mémoire de l'exécuteur de tâches
+  # CORRECTIF MÉMOIRE : Alloue 1 Go à l'exécuteur pour éviter le crash
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "1024"
 
+# Application des variables aux différents composants
 main:
   count: 1
   command: ["/usr/local/bin/n8n"]
@@ -99,7 +103,7 @@ webhook:
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
 
-# --- Playwright Wrapper (MCP / Orchestration) ---
+# --- Playwright Wrapper ---
 playwright-wrapper:
   enabled: true
   image:
