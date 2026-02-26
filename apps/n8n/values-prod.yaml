@@ -109,7 +109,7 @@ webhook:
     requests:
       memory: "512Mi"
 
-# --- PLAYWRIGHT WRAPPER (CORRECTION PORT DUPLICATE) ---
+# --- PLAYWRIGHT WRAPPER ---
 playwright-wrapper:
   enabled: true
   image:
@@ -119,8 +119,8 @@ playwright-wrapper:
   service:
     type: ClusterIP
     port: 8080
-    # FIX CRITIQUE: On nomme le port différemment de "http"
-    name: mcp-wrapper-port 
+    # CETTE LIGNE EST OBLIGATOIRE POUR ÉVITER LE CONFLIT
+    name: mcp-port 
   env:
     BROWSERLESS_URL: "ws://browserless:3000"
     LOG_LEVEL: "INFO"
