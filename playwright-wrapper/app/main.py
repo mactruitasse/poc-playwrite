@@ -12,7 +12,7 @@ logger = logging.getLogger("mcp-browserless")
 app = FastAPI(title="n8n MCP Browserless Wrapper")
 mcp_server = Server("playwright-tools")
 
-# --- ÉTAT GLOBAL (SESSION BROWSER) ---
+# --- ÉTAT GLOBAL ---
 state = {"browser": None, "context": None}
 
 async def get_page():
@@ -26,18 +26,17 @@ async def get_page():
         return await state["context"].new_page()
     return state["context"].pages[0]
 
-# --- ENDPOINT DE SANTÉ ---
 @app.get("/health")
 async def health():
     return {"status": "ok", "browser_connected": state["browser"] is not None}
 
-# --- DÉFINITION DES OUTILS MCP ---
+# --- OUTILS MCP ---
 @mcp_server.list_tools()
 async def list_tools():
     return [
         {
             "name": "navigate",
-            "description": "Naviguer vers une URL spécifique",
+            "description": "Naviguer vers une URL",
             "inputSchema": {
                 "type": "object",
                 "properties": {"url": {"type": "string"}},
@@ -46,7 +45,7 @@ async def list_tools():
         },
         {
             "name": "click",
-            "description": "Cliquer sur un élément CSS",
+            "description": "Cliquer sur un sélecteur CSS",
             "inputSchema": {
                 "type": "object",
                 "properties": {"selector": {"type": "string"}},
@@ -55,7 +54,7 @@ async def list_tools():
         },
         {
             "name": "extract_content",
-            "description": "Extraire tout le texte de la page",
+            "description": "Extraire le contenu texte",
             "inputSchema": {"type": "object", "properties": {}}
         }
     ]
@@ -65,24 +64,22 @@ async def call_tool(name, arguments):
     page = await get_page()
     try:
         if name == "navigate":
-            await page.goto(arguments["url"], wait_until="domcontentloaded")
-            return [{"type": "text", "text": f"Succès : Navigué sur {arguments['url']}"}]
+            await page.goto(arguments["url"])
+            return [{"type": "text", "text": f"Navigué sur {arguments['url']}"}]
         elif name == "click":
             await page.click(arguments["selector"])
-            return [{"type": "text", "text": f"Succès : Cliqué sur {arguments['selector']}"}]
+            return [{"type": "text", "text": f"Cliqué sur {arguments['selector']}"}]
         elif name == "extract_content":
-            content = await page.content()
-            return [{"type": "text", "text": content}]
+            text = await page.inner_text("body")
+            return [{"type": "text", "text": text}]
     except Exception as e:
-        logger.error(f"Erreur outil {name}: {str(e)}")
-        return [{"type": "text", "text": f"Erreur : {str(e)}"}]
+        return [{"type": "text", "text": f"Erreur: {str(e)}"}]
 
-# --- TRANSPORT MCP (SSE) ---
+# --- TRANSPORT MCP (FIXÉ) ---
 sse_transport = SseServerTransport("/messages")
 
 @app.get("/sse")
 async def sse_endpoint(request: Request):
-    # CHANGEMENT ICI : On utilise connect_sse et on récupère les flux
     async with sse_transport.connect_sse(
         request.scope, request.receive, request._send
     ) as (read_stream, write_stream):
@@ -94,4 +91,5 @@ async def sse_endpoint(request: Request):
 
 @app.post("/messages")
 async def messages_endpoint(request: Request):
-    await sse_transport.handle_post_request(request.scope, request.receive, request._send)
+    # CORRECTION ICI : handle_post_message au lieu de handle_post_request
+    await sse_transport.handle_post_message(request.scope, request.receive, request._send)
