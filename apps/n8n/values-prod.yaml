@@ -84,7 +84,7 @@ resources: &resources
 
 main:
   count: 1
-  command: ["/usr/local/bin/n8n"]
+#  command: ["/usr/local/bin/n8n"]
   extraEnvVars: *commonEnv
   resources: *resources
 
