@@ -3,10 +3,16 @@ image:
   tag: 2.2.4-pw1.49.0-fix5
   pullPolicy: IfNotPresent
 
-# Correction : la clé est 'config', pas 'db' pour ce chart
 config:
   database:
     type: postgresdb
+
+# --- CONFIGURATION SERVICE (Fix Duplicate http) ---
+service:
+  type: ClusterIP
+  port: 5678
+  # On ne définit pas explicitement 'name: http' ici pour laisser le chart
+  # gérer son nom par défaut sans doublon.
 
 # --- CONFIGURATION INGRESS ---
 ingress:
@@ -23,13 +29,12 @@ ingress:
         - path: /
           pathType: Prefix
 
-# --- INFRASTRUCTURE (Correction Secrets) ---
+# --- INFRASTRUCTURE ---
 postgresql:
   enabled: true
   auth:
     database: n8n
     username: n8n
-    # Utilisation du secret partagé défini dans secrets.yaml
     existingSecret: "n8n-prod-postgresql"
     secretKeys:
       userPasswordKey: "password"
@@ -40,15 +45,14 @@ redis:
   architecture: standalone
   auth:
     enabled: true
-    # Si tu as un secret pour redis, utilise existingSecret ici aussi
     password: redis-local-password 
 
-# --- CONFIGURATION BROWSERLESS (FIXÉ) ---
+# --- CONFIGURATION BROWSERLESS ---
 browserless:
   enabled: true
   image:
     repository: browserless/chrome
-    tag: 1.61-puppeteer # FIX: Tag fixe pour éviter le DNS timeout de 'latest'
+    tag: 1.61-puppeteer
     pullPolicy: IfNotPresent 
   service:
     port: 3000
@@ -59,7 +63,7 @@ browserless:
     KEEP_ALIVE: "true"
     WORKSPACE_DIR: "/home/browserless/workspace"
 
-# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES ---
+# --- VARIABLES D'ENVIRONNEMENT ---
 commonEnv: &commonEnv
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
@@ -72,14 +76,9 @@ commonEnv: &commonEnv
   N8N_LOG_LEVEL: "debug"
   N8N_SECURE_COOKIE: "false"
 
-# --- LIMITES DE RESSOURCES ---
 resources: &resources
-  limits:
-    memory: "4Gi"
-    cpu: "1000m"
-  requests:
-    memory: "2Gi"
-    cpu: "500m"
+  limits: { memory: "4Gi", cpu: "1000m" }
+  requests: { memory: "2Gi", cpu: "500m" }
 
 main:
   count: 1
@@ -103,10 +102,8 @@ webhook:
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
   resources:
-    limits:
-      memory: "2Gi"
-    requests:
-      memory: "512Mi"
+    limits: { memory: "2Gi" }
+    requests: { memory: "512Mi" }
 
 # --- PLAYWRIGHT WRAPPER ---
 playwright-wrapper:
@@ -118,9 +115,10 @@ playwright-wrapper:
   service:
     type: ClusterIP
     port: 8080
+    # FIX: On nomme explicitement ce port pour éviter qu'il s'appelle "http" par défaut
+    name: mcp-port 
   env:
     BROWSERLESS_URL: "ws://browserless:3000"
     LOG_LEVEL: "INFO"
 
-# Secret d'encryption (doit matcher secrets.yaml)
 existingEncryptionKeySecret: "n8n-prod-encryption-key-secret-v2"
