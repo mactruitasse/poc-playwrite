@@ -5,24 +5,22 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# Dépendances système minimales pour Playwright (client)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copie et installation des dépendances
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie du code source
 COPY app/ /app/app/
 
-# Gestion de l'utilisateur non-root
+# Utilisateur non-root
 RUN addgroup --system app && adduser --system --ingroup app app \
     && chown -R app:app /app
-
 USER app
 
 EXPOSE 8080
 
-# Utilisation directe de python pour lancer le script Flask
-CMD ["python", "app/main.py"]
+# On lance avec Uvicorn (nécessaire pour le support SSE de MCP)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

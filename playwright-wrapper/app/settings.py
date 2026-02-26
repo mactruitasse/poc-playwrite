@@ -1,69 +1,8 @@
 from pydantic_settings import BaseSettings
 
-
 class Settings(BaseSettings):
-    # Environnements
-    environment: str = "dev"  # dev | prod
-
-    # Namespace cible : si vide => namespace courant
-    target_namespace: str | None = None
-
-    # Image Playwright MCP
-    playwright_image: str = "mcr.microsoft.com/playwright/mcp:latest"
-
-    # Port exposé par le serveur Playwright MCP dans le pod (probe + service)
-    playwright_port: int = 8933
-
-    # Command/args du conteneur Playwright MCP dans les pods éphémères.
-    #
-    # IMPORTANT:
-    # - On définit des valeurs par défaut sûres (bind 0.0.0.0), car certaines builds MCP écoutent sur localhost,
-    #   ce qui rend l'IP du pod inaccessible (readiness probe TCP échoue => /sessions 504).
-    # - Tu peux overrider via env: PLAYWRIGHT_COMMAND et PLAYWRIGHT_ARGS.
-    #
-    # Exemple:
-    #   PLAYWRIGHT_COMMAND=node
-    #   PLAYWRIGHT_ARGS="cli.js --headless --browser chromium --no-sandbox --host 0.0.0.0 --port 8933 --shared-browser-context"
-    playwright_command: str | None = "node"
-    playwright_args: str | None = (
-        "cli.js --headless --browser chromium --no-sandbox --allowed-hosts localhost,127.0.0.1,0.0.0.0'*' "
-        "--host 0.0.0.0 --port 8933 --shared-browser-context"
-    )
-
-    # PVC artifacts
-    enable_pvc_mount: bool = False
-    pvc_name: str = "playwright-artifacts-pvc"
-    pvc_mount_path: str = "/artifacts"
-
-    # GC
-    session_ttl_minutes: int = 30
-    gc_interval_seconds: int = 30
-    pod_ready_timeout_seconds: int = 90
-
-    # Service créé pour joindre le pod playwright
-    service_type: str = "ClusterIP"  # ClusterIP | NodePort
-    node_address: str = "127.0.0.1"  # utile seulement si NodePort et wrapper hors cluster
-
-    # Non-root côté pods Playwright
-    run_as_non_root: bool = True
-    run_as_user: int = 1000
-    run_as_group: int = 1000
-    fs_group: int = 1000
-
-    # Durcissement sécurité pods Playwright
-    drop_all_caps: bool = True
-    allow_privilege_escalation: bool = False
-    read_only_root_filesystem: bool = False
-    seccomp_runtime_default: bool = True
-
-    # Timeouts httpx
-    http_connect_timeout_seconds: float = 5.0
-    http_default_read_timeout_seconds: float = 20.0
-    sse_read_timeout_seconds: float = 0.0  # 0 => désactivé
-    sse_write_timeout_seconds: float = 20.0
-
-    # Logs
+    # URL de Browserless (le service K8s)
+    browserless_url: str = "ws://browserless:3000"
     log_level: str = "INFO"
-
 
 settings = Settings()

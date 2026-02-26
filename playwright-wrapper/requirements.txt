@@ -1,3 +1,5 @@
-flask
-kubernetes
+fastapi
+uvicorn
+mcp
 playwright
+pydantic-settings

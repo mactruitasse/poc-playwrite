@@ -6,7 +6,7 @@ image:
 db:
   type: postgresdb
 
-# --- CONFIGURATION INGRESS ---
+# --- CONFIGURATION INGRESS (Accès n8n.localhost) ---
 ingress:
   enabled: true
   className: nginx
@@ -46,14 +46,13 @@ browserless:
     port: 3000
   env:
     MAX_CONCURRENT_SESSIONS: "10"
-    # 1. TIMEOUT DE SESSION (20 minutes)
+    # Timeout de session : 20 minutes
     TIMEOUT: "1200000"
-    # 2. TIMEOUT DE CONNEXION (1 minute)
     CONNECTION_TIMEOUT: "60000"
     KEEP_ALIVE: "true"
     WORKSPACE_DIR: "/home/browserless/workspace"
 
-# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES ---
+# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES (STABILITÉ n8n) ---
 commonEnv: &commonEnv
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
@@ -61,10 +60,9 @@ commonEnv: &commonEnv
   BROWSERLESS_URL: "http://browserless:3000"
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
   
-  # Stabilité Task Runner (Désactivé pour éviter les crashs WebSocket)
+  # Désactivation des Task Runners pour éviter les crashs WebSocket internes (v2.2.4)
   N8N_TASK_RUNNERS_ENABLED: "false"
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
-  # On aligne le timeout de n8n sur 2 minutes pour le démarrage
   N8N_TASK_RUNNERS_TIMEOUT: "120000"
   
   N8N_LOG_LEVEL: "debug"
@@ -106,25 +104,25 @@ webhook:
     requests:
       memory: "512Mi"
 
-# --- PLAYWRIGHT WRAPPER (SERVEUR MCP) ---
+# --- PLAYWRIGHT WRAPPER (SERVEUR MCP FASTAPI) ---
 playwright-wrapper:
   enabled: true
   image:
-    repository: n8n-playwright-local
-    tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
+    # On utilise l'image que tu as buildée et chargée dans Kind
+    repository: playwright-wrapper 
+    tag: v1
+    pullPolicy: IfNotPresent 
   service:
     type: ClusterIP
     port: 8080
   env:
-    apiTokenSecretName: playwright-wrapper-secret
-    apiTokenSecretKey: API_TOKEN
-    targetNamespace: n8n-prod
-    # On aligne aussi le wrapper MCP sur tes 20 minutes
-    PLAYWRIGHT_TIMEOUT: "1200000"
-    BROWSERLESS_URL: "http://browserless:3000"
+    # URL pour le nouveau script Python (utilise ws:// pour le CDP de Playwright)
+    BROWSERLESS_URL: "ws://browserless:3000"
+    LOG_LEVEL: "INFO"
   ingress:
     enabled: true
     annotations:
+      # Désactive le buffering pour le flux SSE (Server-Sent Events) du MCP
       nginx.ingress.kubernetes.io/proxy-buffering: "off"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
 
