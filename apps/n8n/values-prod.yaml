@@ -6,6 +6,19 @@ image:
 db:
   type: postgresdb
 
+# --- Configuration INGRESS GLOBAL (Restaurée) ---
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: n8n.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+
 postgresql:
   enabled: true
   auth:
@@ -21,7 +34,6 @@ redis:
     enabled: true
     password: redis-local-password
 
-# --- Configuration Browserless ---
 browserless:
   enabled: true
   image:
@@ -32,7 +44,6 @@ browserless:
   env:
     MAX_CONCURRENT_SESSIONS: "10"
 
-# --- Configuration des Sondes (Port 8080) ---
 livenessProbe:
   httpGet:
     path: /health
@@ -60,7 +71,6 @@ main:
     N8N_SECURE_COOKIE: "false"
     BROWSERLESS_URL: "http://browserless:3000"
     PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
-    # Autorisations pour le nœud Code
     NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
     NODE_FUNCTION_ALLOW_BUILTIN: "*"
 
@@ -87,7 +97,6 @@ webhook:
     NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
     NODE_FUNCTION_ALLOW_BUILTIN: "*"
 
-# --- Playwright Wrapper (existant) ---
 playwright-wrapper:
   enabled: true
   image:

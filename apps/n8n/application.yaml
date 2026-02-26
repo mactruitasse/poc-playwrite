@@ -5,23 +5,20 @@ metadata:
   namespace: argocd
 spec:
   project: default
-
   destination:
     server: https://kubernetes.default.svc
     namespace: n8n-prod
-
   source:
     repoURL: https://github.com/mactruitasse/poc-playwrite.git
     targetRevision: main
     path: charts/n8n
-
     helm:
       valueFiles:
         - ../../apps/n8n/values-prod.yaml
-
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - Replace=true
