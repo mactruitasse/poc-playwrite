@@ -67,7 +67,7 @@ readinessProbe:
   periodSeconds: 15
   failureThreshold: 3
 
-# --- Variables d'environnement partagées (Le Fix) ---
+# --- Variables d'environnement partagées (FIX MÉMOIRE ICI) ---
 commonEnv: &commonEnv
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
   N8N_SECURE_COOKIE: "false"
@@ -76,7 +76,7 @@ commonEnv: &commonEnv
   # Autorisations pour le nœud Code
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
-  # Fix pour le "Node execution failed" (Allocation mémoire)
+  # FIX CRITIQUE : Augmentation de la mémoire de l'exécuteur de tâches
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "1024"
 
 main:
