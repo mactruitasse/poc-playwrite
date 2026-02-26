@@ -6,7 +6,7 @@ image:
 db:
   type: postgresdb
 
-# --- Configuration INGRESS GLOBAL ---
+# --- Configuration INGRESS (Accès n8n.localhost) ---
 ingress:
   enabled: true
   className: nginx
@@ -36,6 +36,7 @@ redis:
     enabled: true
     password: redis-local-password
 
+# --- Configuration Browserless ---
 browserless:
   enabled: true
   image:
@@ -46,37 +47,43 @@ browserless:
   env:
     MAX_CONCURRENT_SESSIONS: "10"
 
-# --- Variables d'environnement partagées ---
+# --- Variables d'environnement partagées (DEBUG + MÉMOIRE) ---
 commonEnv: &commonEnv
-  N8N_COMMUNITY_PACKAGES_ENABLED: "true"
-  N8N_SECURE_COOKIE: "false"
-  BROWSERLESS_URL: "http://browserless:3000"
-  PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  # Autorisations JS
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
-  # FIX CRITIQUE : Mémoire du Runner
+  N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+  
+  # Réseau interne
+  BROWSERLESS_URL: "http://browserless:3000"
+  PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  
+  # --- FIX STABILITÉ ---
+  # On désactive le runner externe qui cause les erreurs WebSocket
+  N8N_TASK_RUNNERS_ENABLED: "false"
+  # On booste la RAM du processus principal à 2Go
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
-  # FIX MODE EXECUTION : Utilise le mode 'own' pour isoler les crashs
-  N8N_EXECUTION_PROCESS: "own"
+  
+  # --- LOGS VERBEUX ---
+  N8N_LOG_LEVEL: "debug"
+  N8N_LOG_OUTPUT: "console"
+  
+  N8N_SECURE_COOKIE: "false"
 
-# --- CONFIGURATION DES RESSOURCES GLOBALES ---
-resources:
+# --- LIMITES DE RESSOURCES KUBERNETES ---
+resources: &resources
   limits:
-    memory: "3Gi"
+    memory: "4Gi" # On laisse 4Go au Pod pour éviter que Docker ne le tue
     cpu: "1000m"
   requests:
-    memory: "1Gi"
+    memory: "2Gi"
     cpu: "500m"
 
 main:
   count: 1
   command: ["/usr/local/bin/n8n"]
   extraEnvVars: *commonEnv
-  resources:
-    limits:
-      memory: "3Gi"
-    requests:
-      memory: "1Gi"
+  resources: *resources
 
 worker:
   mode: queue
@@ -85,11 +92,7 @@ worker:
   command: ["/usr/local/bin/n8n"]
   args: ["worker"]
   extraEnvVars: *commonEnv
-  resources:
-    limits:
-      memory: "3Gi"
-    requests:
-      memory: "1Gi"
+  resources: *resources
 
 webhook:
   mode: queue
@@ -97,37 +100,21 @@ webhook:
   command: ["/usr/local/bin/n8n"]
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
-  resources:
-    limits:
-      memory: "2Gi"
-    requests:
-      memory: "512Mi"
+  resources: *resources
 
+# --- Playwright Wrapper (MCP) ---
 playwright-wrapper:
   enabled: true
   image:
     repository: n8n-playwright-local
     tag: 2.2.4-pw1.49.0-fix4-20260225-113301-nogit
   service:
-    type: ClusterIP
     port: 8080
   env:
     apiTokenSecretName: playwright-wrapper-secret
     apiTokenSecretKey: API_TOKEN
     targetNamespace: n8n-prod
-    playwrightPodLabelKey: app
-    playwrightPodLabelValue: playwright-worker
-    playwrightMcpPort: "8080"
   ingress:
     enabled: true
-    annotations:
-      nginx.ingress.kubernetes.io/proxy-buffering: "off"
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
 
 existingEncryptionKeySecret: n8n-prod-encryption-key-secret-v2
-
-# --- Suppression des sondes port 8080 si n8n tourne sur 5678 (optionnel mais recommandé) ---
-livenessProbe:
-  initialDelaySeconds: 60
-readinessProbe:
-  initialDelaySeconds: 60
