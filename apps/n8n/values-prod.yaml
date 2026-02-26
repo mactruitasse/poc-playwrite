@@ -7,14 +7,7 @@ config:
   database:
     type: postgresdb
 
-# --- CONFIGURATION SERVICE (Fix Duplicate http) ---
-service:
-  type: ClusterIP
-  port: 5678
-  # On ne définit pas explicitement 'name: http' ici pour laisser le chart
-  # gérer son nom par défaut sans doublon.
-
-# --- CONFIGURATION INGRESS ---
+# --- CONFIGURATION INGRESS (Accès n8n.localhost) ---
 ingress:
   enabled: true
   className: nginx
@@ -29,12 +22,13 @@ ingress:
         - path: /
           pathType: Prefix
 
-# --- INFRASTRUCTURE ---
+# --- INFRASTRUCTURE (Base de données et Cache) ---
 postgresql:
   enabled: true
   auth:
     database: n8n
     username: n8n
+    # Utilisation du secret défini dans secrets.yaml
     existingSecret: "n8n-prod-postgresql"
     secretKeys:
       userPasswordKey: "password"
@@ -45,14 +39,14 @@ redis:
   architecture: standalone
   auth:
     enabled: true
-    password: redis-local-password 
+    password: redis-local-password
 
-# --- CONFIGURATION BROWSERLESS ---
+# --- CONFIGURATION BROWSERLESS (FIXÉ) ---
 browserless:
   enabled: true
   image:
     repository: browserless/chrome
-    tag: 1.61-puppeteer
+    tag: 1.61-puppeteer # On évite 'latest' pour le DNS de Kind
     pullPolicy: IfNotPresent 
   service:
     port: 3000
@@ -63,22 +57,30 @@ browserless:
     KEEP_ALIVE: "true"
     WORKSPACE_DIR: "/home/browserless/workspace"
 
-# --- VARIABLES D'ENVIRONNEMENT ---
+# --- VARIABLES D'ENVIRONNEMENT PARTAGÉES (STABILITÉ) ---
 commonEnv: &commonEnv
   NODE_FUNCTION_ALLOW_EXTERNAL: "playwright-core"
   NODE_FUNCTION_ALLOW_BUILTIN: "*"
   N8N_COMMUNITY_PACKAGES_ENABLED: "true"
   BROWSERLESS_URL: "http://browserless:3000"
   PLAYWRIGHT_SERVICE_URL: "ws://browserless:3000"
+  
+  # Désactivation des Task Runners pour éviter les crashs (v2.2.4)
   N8N_TASK_RUNNERS_ENABLED: "false"
   N8N_RUNNERS_MAX_OLD_SPACE_SIZE: "2048"
   N8N_TASK_RUNNERS_TIMEOUT: "120000"
+  
   N8N_LOG_LEVEL: "debug"
   N8N_SECURE_COOKIE: "false"
 
+# --- LIMITES DE RESSOURCES KUBERNETES ---
 resources: &resources
-  limits: { memory: "4Gi", cpu: "1000m" }
-  requests: { memory: "2Gi", cpu: "500m" }
+  limits:
+    memory: "4Gi"
+    cpu: "1000m"
+  requests:
+    memory: "2Gi"
+    cpu: "500m"
 
 main:
   count: 1
@@ -102,10 +104,12 @@ webhook:
   url: http://n8n.localhost
   extraEnvVars: *commonEnv
   resources:
-    limits: { memory: "2Gi" }
-    requests: { memory: "512Mi" }
+    limits:
+      memory: "2Gi"
+    requests:
+      memory: "512Mi"
 
-# --- PLAYWRIGHT WRAPPER ---
+# --- PLAYWRIGHT WRAPPER (CORRECTION PORT DUPLICATE) ---
 playwright-wrapper:
   enabled: true
   image:
@@ -115,10 +119,11 @@ playwright-wrapper:
   service:
     type: ClusterIP
     port: 8080
-    # FIX: On nomme explicitement ce port pour éviter qu'il s'appelle "http" par défaut
-    name: mcp-port 
+    # FIX CRITIQUE: On nomme le port différemment de "http"
+    name: mcp-wrapper-port 
   env:
     BROWSERLESS_URL: "ws://browserless:3000"
     LOG_LEVEL: "INFO"
 
+# Secret d'encryption pour n8n
 existingEncryptionKeySecret: "n8n-prod-encryption-key-secret-v2"
