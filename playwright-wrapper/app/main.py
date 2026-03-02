@@ -8,13 +8,22 @@ import shutil
 import hashlib
 from contextlib import asynccontextmanager
 
-# --- CONFIGURATION LOGGING (Direct et Transparent) ---
+# --- LOGGING PLUS VERBEUX (contrôlé par ENV) ---
+# LOG_LEVEL: INFO|DEBUG (par défaut DEBUG pour diagnostiquer)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
+UVICORN_LOG_LEVEL = os.getenv("UVICORN_LOG_LEVEL", "debug").lower()
+PW_VERBOSE = os.getenv("PW_VERBOSE", "0") == "1"
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.DEBUG),
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
     stream=sys.stdout,
 )
 logger = logging.getLogger("mcp-manager")
+
+# Rendre uvicorn + mcp plus bavards
+for _name in ("uvicorn", "uvicorn.error", "uvicorn.access", "mcp", "mcp.server", "mcp.server.lowlevel"):
+    logging.getLogger(_name).setLevel(getattr(logging, LOG_LEVEL, logging.DEBUG))
 
 try:
     import uvicorn
@@ -56,7 +65,6 @@ async def lifespan(app: FastAPI):
     logger.info("[SYSTEM] Shutdown : Fermeture propre de toutes les sessions...")
     for _s_id, data in list(sessions.items()):
         try:
-            # Important: fermer context puis browser
             try:
                 if "context" in data and data["context"]:
                     await data["context"].close()
@@ -111,7 +119,6 @@ def parse_filename_from_content_disposition(cd: str) -> str | None:
     if "filename=" not in cd_low:
         return None
     part = cd.split("filename=", 1)[-1].strip()
-    # retirer éventuel ;...
     if ";" in part:
         part = part.split(";", 1)[0].strip()
     return part.strip().strip('"').strip("'")
@@ -143,8 +150,16 @@ async def extract_deep_dom(page):
     return await page.evaluate(script)
 
 
+def attach_verbose_playwright_listeners(page):
+    # Très verbeux, activable via PW_VERBOSE=1
+    page.on("console", lambda msg: logger.debug(f"[PW:console] {msg.type}: {msg.text}"))
+    page.on("pageerror", lambda err: logger.debug(f"[PW:pageerror] {err}"))
+    page.on("request", lambda req: logger.debug(f"[PW:request] {req.method} {req.url}"))
+    page.on("response", lambda res: logger.debug(f"[PW:response] {res.status} {res.url}"))
+    page.on("requestfailed", lambda req: logger.debug(f"[PW:requestfailed] {req.method} {req.url} - {req.failure}"))
+
+
 async def get_or_create_session(session_id: str):
-    # Session existante encore utilisable
     if session_id in sessions:
         data = sessions[session_id]
         try:
@@ -154,11 +169,10 @@ async def get_or_create_session(session_id: str):
             pass
 
     logger.info(f"[CDP] Creation d'une session DESKTOP HD (1920x1080) : {session_id}")
+    logger.debug(f"[CDP] BROWSERLESS_URL={BROWSERLESS_URL}")
 
-    # Connexion CDP vers browserless/chrome
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
 
-    # Important pour download interception : accept_downloads=True
     context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         user_agent=(
@@ -170,9 +184,11 @@ async def get_or_create_session(session_id: str):
     )
 
     page = await context.new_page()
-
-    # Optionnel : éviter certains pièges sur pages lourdes
     page.set_default_timeout(30000)
+
+    if PW_VERBOSE:
+        logger.info("[PW] Verbose listeners enabled (PW_VERBOSE=1)")
+        attach_verbose_playwright_listeners(page)
 
     sessions[session_id] = {"context": context, "page": page, "browser": browser}
     return page
@@ -229,26 +245,17 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="download_pdf_wikipedia",
             description=(
-                "FIX1: Telecharge le PDF Wikipedia via l'action du formulaire #mw-download-form "
-                "(robuste, évite les downloads 0-octet sur CDP)."
+                "FIX Wikipedia: récupère l'URL action du formulaire (ou fallback) et télécharge via page.request "
+                "(évite les downloads 0-octet / timeouts sur CDP)."
             ),
-            inputSchema={
-                "type": "object",
-                "properties": {**s_id},
-                "required": ["session_id"],
-            },
+            inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]},
         ),
         types.Tool(
             name="read_file_chunk",
             description="Lire un fichier local (path) en base64 par morceaux (chunk).",
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "path": {"type": "string"},
-                    "offset": {"type": "integer"},
-                    "length": {"type": "integer"},
-                    **s_id,
-                },
+                "properties": {"path": {"type": "string"}, "offset": {"type": "integer"}, "length": {"type": "integer"}, **s_id},
                 "required": ["path", "offset", "length", "session_id"],
             },
         ),
@@ -275,11 +282,14 @@ async def call_tool(name: str, arguments: dict):
 
     session_id = arguments.get("session_id")
     page = await get_or_create_session(session_id)
-    logger.info(f"[EXECUTE] {name} | SESSION: {session_id}")
+    logger.info(f"[EXECUTE] {name} | SESSION: {session_id} | URL: {page.url}")
 
     try:
         if name == "navigate":
-            await page.goto(arguments["url"], wait_until="networkidle", timeout=60000)
+            url = arguments["url"]
+            logger.info(f"[NAV] goto {url}")
+            await page.goto(url, wait_until="networkidle", timeout=60000)
+            logger.debug(f"[NAV] landed {page.url}")
             dom = await extract_deep_dom(page)
             payload = {"url": page.url, "scout_report": dom}
             return [types.TextContent(type="text", text=safe_json_text(payload))]
@@ -292,10 +302,11 @@ async def call_tool(name: str, arguments: dict):
         elif name == "click_element":
             selector = arguments["selector"]
             wait_for = arguments.get("wait_for_selector")
+            logger.info(f"[CLICK] selector={selector} wait_for={wait_for}")
 
             if selector.startswith("idx:"):
                 index = int(selector.split(":")[1])
-                logger.info(f"[DOM] Clic force via JS sur l'index : {index}")
+                logger.debug(f"[CLICK] JS idx={index}")
                 ok = await page.evaluate(
                     """
                     (idx) => {
@@ -314,13 +325,15 @@ async def call_tool(name: str, arguments: dict):
                     return [types.TextContent(type="text", text=safe_json_text({"error": "idx element not found", "selector": selector}))]
 
             else:
-                if await page.locator(selector).count() == 0:
+                cnt = await page.locator(selector).count()
+                logger.debug(f"[CLICK] locator count={cnt}")
+                if cnt == 0:
                     return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found", "selector": selector}))]
                 await page.locator(selector).first.scroll_into_view_if_needed(timeout=15000)
                 await page.click(selector, force=True, timeout=15000)
 
             if wait_for:
-                logger.info(f"[WAIT] Attente de : {wait_for}")
+                logger.info(f"[WAIT] selector={wait_for} state=attached")
                 await page.wait_for_selector(wait_for, state="attached", timeout=15000)
             else:
                 try:
@@ -329,19 +342,23 @@ async def call_tool(name: str, arguments: dict):
                     pass
                 await asyncio.sleep(0.6)
 
+            logger.debug(f"[CLICK] new_url={page.url}")
             new_dom = await extract_deep_dom(page)
             payload = {"action": "click", "result": "OK", "new_url": page.url, "scout_report": new_dom}
             return [types.TextContent(type="text", text=safe_json_text(payload))]
 
         elif name == "fill_input":
-            await page.focus(arguments["selector"])
-            await page.type(arguments["selector"], arguments["value"], delay=30)
+            selector = arguments["selector"]
+            value = arguments["value"]
+            logger.info(f"[FILL] selector={selector} len(value)={len(value)}")
+            await page.focus(selector)
+            await page.type(selector, value, delay=30)
             payload = {"action": "fill", "result": "OK"}
             return [types.TextContent(type="text", text=safe_json_text(payload))]
 
         elif name == "download_file":
             selector = arguments["selector"]
-            logger.info(f"[DOWNLOAD] Strategie expect_download sur : {selector}")
+            logger.info(f"[DOWNLOAD] expect_download selector={selector}")
 
             try:
                 if selector.startswith("idx:"):
@@ -361,7 +378,9 @@ async def call_tool(name: str, arguments: dict):
                             index,
                         )
                 else:
-                    if await page.locator(selector).count() == 0:
+                    cnt = await page.locator(selector).count()
+                    logger.debug(f"[DOWNLOAD] locator count={cnt}")
+                    if cnt == 0:
                         payload = {"result": "ERROR", "error": "Selector not found", "selector": selector, "current_url": page.url}
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
@@ -379,7 +398,7 @@ async def call_tool(name: str, arguments: dict):
                 sha256 = file_sha256(file_path)
                 mime = guess_mime_type(filename)
 
-                logger.info(f"[SUCCESS] Fichier recupere : {file_path} | size={size_bytes} bytes")
+                logger.info(f"[DOWNLOAD] saved={file_path} size={size_bytes} sha256={sha256}")
 
                 payload = {
                     "result": "OK",
@@ -394,31 +413,74 @@ async def call_tool(name: str, arguments: dict):
                 return [types.TextContent(type="text", text=safe_json_text(payload))]
 
             except Exception as e:
-                logger.error(f"[ERROR] Echec interception download : {str(e)}")
+                logger.error(f"[ERROR] download_file: {str(e)}")
                 payload = {"result": "ERROR", "error": str(e), "selector": selector, "current_url": page.url}
                 return [types.TextContent(type="text", text=safe_json_text(payload))]
 
         elif name == "download_pdf_wikipedia":
-            # FIX1: éviter les downloads 0-octet en cliquant.
-            # On attend le formulaire #mw-download-form puis on télécharge via page.request.
+            # FIX Wikipedia (robuste):
+            # - ne dépend pas de la visibilité d'un élément
+            # - cherche d'abord #mw-download-form (state=attached), puis fallback par heuristique sur les <form>.action
+            # - télécharge via page.request.get (évite l'interception "download" vide en CDP)
             try:
-                await page.wait_for_selector("#mw-download-form", timeout=30000)
+                # Attente "attached" (pas visible)
+                try:
+                    await page.wait_for_selector("#mw-download-form", state="attached", timeout=30000)
+                    logger.debug("[WIKI_PDF] #mw-download-form attached")
+                except Exception as e:
+                    logger.debug(f"[WIKI_PDF] wait #mw-download-form skipped/failed: {e}")
 
                 action_url = await page.evaluate(
                     """
                     () => {
-                        const f = document.querySelector('#mw-download-form');
-                        return f ? f.action : null;
+                        const f1 = document.querySelector('#mw-download-form');
+                        if (f1 && f1.action) return f1.action;
+
+                        const forms = Array.from(document.querySelectorAll('form'))
+                          .map(f => ({ action: (f.action || ''), id: f.id || null, name: f.getAttribute('name') || null }))
+                          .filter(x => x.action);
+
+                        const c1 = forms.find(x => x.action.includes('Special:DownloadAsPdf'));
+                        if (c1) return c1.action;
+
+                        const c2 = forms.find(x => x.action.toLowerCase().includes('download'));
+                        if (c2) return c2.action;
+
+                        return null;
                     }
                     """
                 )
+
                 if not action_url:
-                    payload = {"result": "ERROR", "error": "mw-download-form not found (after wait)", "current_url": page.url}
+                    # Logs de diag : lister les actions des forms
+                    forms_dump = await page.evaluate(
+                        """
+                        () => Array.from(document.querySelectorAll('form')).map(f => ({
+                            id: f.id || null,
+                            name: f.getAttribute('name') || null,
+                            action: f.action || null
+                        }))
+                        """
+                    )
+                    payload = {
+                        "result": "ERROR",
+                        "error": "No suitable download form/action found on page",
+                        "current_url": page.url,
+                        "forms": forms_dump,
+                    }
                     return [types.TextContent(type="text", text=safe_json_text(payload))]
 
                 logger.info(f"[WIKI_PDF] GET {action_url}")
 
                 resp = await page.request.get(action_url, timeout=120000)
+
+                logger.debug(f"[WIKI_PDF] HTTP status={resp.status} ok={resp.ok}")
+                try:
+                    ct = resp.headers.get("content-type", "")
+                    cd = resp.headers.get("content-disposition", "")
+                    logger.debug(f"[WIKI_PDF] headers content-type={ct} content-disposition={cd}")
+                except Exception:
+                    pass
 
                 if not resp.ok:
                     payload = {
@@ -455,7 +517,7 @@ async def call_tool(name: str, arguments: dict):
                 size_bytes = os.path.getsize(file_path)
                 sha256 = file_sha256(file_path)
 
-                logger.info(f"[WIKI_PDF] Saved {file_path} | size={size_bytes} bytes")
+                logger.info(f"[WIKI_PDF] saved={file_path} size={size_bytes} sha256={sha256}")
 
                 payload = {
                     "result": "OK",
@@ -482,6 +544,8 @@ async def call_tool(name: str, arguments: dict):
 
             abs_path = os.path.abspath(path)
             abs_dl = os.path.abspath(DOWNLOAD_PATH)
+
+            logger.debug(f"[READ_CHUNK] path={abs_path} offset={offset} length={length}")
 
             if not abs_path.startswith(abs_dl + os.sep):
                 payload = {"result": "ERROR", "error": "Forbidden path (must be inside DOWNLOAD_PATH)", "path": abs_path}
@@ -545,4 +609,10 @@ app.add_route("/sse", sse_endpoint, methods=["GET"])
 app.mount("/messages/", app=sse_transport.handle_post_message)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080, access_log=True)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8080,
+        access_log=True,
+        log_level=UVICORN_LOG_LEVEL,
+    )
