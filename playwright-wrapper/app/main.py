@@ -430,27 +430,39 @@ async def call_tool(name: str, arguments: dict):
                 except Exception as e:
                     logger.debug(f"[WIKI_PDF] wait #mw-download-form skipped/failed: {e}")
 
-                action_url = await page.evaluate(
-                    """
-                    () => {
-                        const f1 = document.querySelector('#mw-download-form');
-                        if (f1 && f1.action) return f1.action;
-
-                        const forms = Array.from(document.querySelectorAll('form'))
-                          .map(f => ({ action: (f.action || ''), id: f.id || null, name: f.getAttribute('name') || null }))
-                          .filter(x => x.action);
-
-                        const c1 = forms.find(x => x.action.includes('Special:DownloadAsPdf'));
-                        if (c1) return c1.action;
-
-                        const c2 = forms.find(x => x.action.toLowerCase().includes('download'));
-                        if (c2) return c2.action;
-
-                        return null;
-                    }
-                    """
-                )
-
+                action_url = await page.evaluate("""
+                () => {
+                    const forms = Array.from(document.querySelectorAll('form'));
+                
+                    const normalized = forms.map(f => {
+                        let action = '';
+                        try {
+                            action = f.action ? String(f.action) : '';
+                        } catch(e) {
+                            action = '';
+                        }
+                        return {
+                            action: action,
+                            id: f.id || null,
+                            name: f.getAttribute('name') || null
+                        };
+                    }).filter(x => x.action);
+                
+                    // 1️⃣ cas standard Wikipedia
+                    const c1 = normalized.find(x =>
+                        String(x.action).includes('Special:DownloadAsPdf')
+                    );
+                    if (c1) return c1.action;
+                
+                    // 2️⃣ fallback plus large
+                    const c2 = normalized.find(x =>
+                        String(x.action).toLowerCase().includes('download')
+                    );
+                    if (c2) return c2.action;
+                
+                    return null;
+                }
+                """)
                 if not action_url:
                     # Logs de diag : lister les actions des forms
                     forms_dump = await page.evaluate(
