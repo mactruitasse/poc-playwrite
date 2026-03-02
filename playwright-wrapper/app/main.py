@@ -85,9 +85,15 @@ async def get_or_create_session(session_id: str):
         if data["browser"].is_connected():
             return data["page"]
     
-    logger.info(f"🆕 [CDP] Création d'une session persistante : {session_id}")
+    logger.info(f"🆕 [CDP] Création d'une session DESKTOP HD (1920x1080) : {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
-    context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+    
+    # --- FORCE DESKTOP VIEWPORT & USER AGENT ---
+    context = await browser.new_context(
+        viewport={"width": 1920, "height": 1080},
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+    
     page = await context.new_page()
     sessions[session_id] = {"context": context, "page": page, "browser": browser}
     return page
@@ -131,7 +137,6 @@ async def call_tool(name: str, arguments: dict):
             selector = arguments["selector"]
             wait_for = arguments.get("wait_for_selector")
             
-            # Diagnostic pré-clic
             if await page.locator(selector).count() == 0:
                 logger.error(f"❌ [DOM ERROR] Sélecteur '{selector}' introuvable.")
                 return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
@@ -146,9 +151,8 @@ async def call_tool(name: str, arguments: dict):
                     await page.wait_for_load_state("networkidle", timeout=5000)
                 except:
                     pass
-                await asyncio.sleep(1) # Sécurité pour les transitions JS
+                await asyncio.sleep(1)
 
-            # --- OUTPUT AUGMENTÉ : On renvoie le DOM après le clic ---
             new_dom = await extract_deep_dom(page)
             return [types.TextContent(type="text", text=json.dumps({
                 "action": "click",
@@ -163,7 +167,6 @@ async def call_tool(name: str, arguments: dict):
             return [types.TextContent(type="text", text=json.dumps({"action": "fill", "result": "OK"}))]
 
         elif name == "download_file":
-            # Sécurité : On attend que le bouton soit cliquable
             await page.wait_for_selector(arguments["selector"], state="visible", timeout=15000)
             async with page.expect_download() as download_info:
                 await page.click(arguments["selector"], force=True)
@@ -180,7 +183,6 @@ async def call_tool(name: str, arguments: dict):
 
     except Exception as e:
         logger.error(f"❌ [ERROR] technique: {str(e)}")
-        # Diagnostic Verbeux en cas de Timeout
         viz = "N/A"
         try:
             viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", arguments.get("selector", ""))
