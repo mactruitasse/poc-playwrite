@@ -46,13 +46,15 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("🛑 [SYSTEM] Shutdown : Fermeture des sessions et arrêt de l'engine...")
     for _s_id, data in list(sessions.items()):
-        try: await data["browser"].close()
-        except: pass
+        try:
+            await data["browser"].close()
+        except Exception as e:
+            logger.warning(f"Erreur lors de la fermeture de session {_s_id}: {e}")
     await pw_manager.stop()
 
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
-# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage) ---
+# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage métier) ---
 async def extract_deep_dom(page):
     logger.info("🔍 [DOM] Exécution du RAW Scout Report (Extraction exhaustive)...")
     script = """
@@ -80,7 +82,8 @@ async def extract_deep_dom(page):
 async def get_or_create_session(session_id: str):
     if session_id in sessions:
         data = sessions[session_id]
-        if data["browser"].is_connected(): return data["page"]
+        if data["browser"].is_connected():
+            return data["page"]
     
     logger.info(f"🆕 [CDP] Création d'une session persistante : {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
@@ -106,7 +109,8 @@ async def list_tools() -> list[types.Tool]:
 async def call_tool(name: str, arguments: dict):
     if name == "purge_downloads":
         logger.info(f"🧹 [PVC] Purge du dossier {DOWNLOAD_PATH}...")
-        shutil.rmtree(DOWNLOAD_PATH); os.makedirs(DOWNLOAD_PATH)
+        shutil.rmtree(DOWNLOAD_PATH)
+        os.makedirs(DOWNLOAD_PATH)
         return [types.TextContent(type="text", text="🧹 Stockage PVC nettoyé.")]
 
     session_id = arguments.get("session_id")
@@ -138,7 +142,10 @@ async def call_tool(name: str, arguments: dict):
                 logger.info(f"⏳ Attente explicite de l'élément : {wait_for}")
                 await page.wait_for_selector(wait_for, state="attached", timeout=15000)
             else:
-                await page.wait_for_load_state("networkidle")
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=5000)
+                except:
+                    pass
                 await asyncio.sleep(1) # Sécurité pour les transitions JS
 
             # --- OUTPUT AUGMENTÉ : On renvoie le DOM après le clic ---
@@ -156,7 +163,7 @@ async def call_tool(name: str, arguments: dict):
             return [types.TextContent(type="text", text=json.dumps({"action": "fill", "result": "OK"}))]
 
         elif name == "download_file":
-            # Sécurité : On attend que le bouton de téléchargement soit cliquable
+            # Sécurité : On attend que le bouton soit cliquable
             await page.wait_for_selector(arguments["selector"], state="visible", timeout=15000)
             async with page.expect_download() as download_info:
                 await page.click(arguments["selector"], force=True)
@@ -175,11 +182,13 @@ async def call_tool(name: str, arguments: dict):
         logger.error(f"❌ [ERROR] technique: {str(e)}")
         # Diagnostic Verbeux en cas de Timeout
         viz = "N/A"
-        try: viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", arguments.get("selector", ""))
-        except: pass
+        try:
+            viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", arguments.get("selector", ""))
+        except:
+            pass
         return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
 
-# --- ROUTAGE INFRA ---
+# --- ROUTAGE INFRA (Fix Readiness/Liveness Probes 404) ---
 async def sse_endpoint(request: Request):
     async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (r, w):
         await mcp_server.run(r, w, mcp_server.create_initialization_options())
