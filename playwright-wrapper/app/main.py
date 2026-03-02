@@ -28,7 +28,6 @@ except ImportError as e:
     logger.error(f"💥 Dépendance manquante : {e}")
     raise
 
-# --- CONFIGURATION STORAGE ---
 DOWNLOAD_PATH = os.getenv("DOWNLOAD_PATH", "/app/downloads")
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
 
@@ -41,10 +40,8 @@ sse_transport = SseServerTransport("/messages/")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pw_manager
-    logger.info("🚀 [SYSTEM] Start Playwright Engine...")
     pw_manager = await async_playwright().start()
     yield
-    logger.info("🛑 [SYSTEM] Shutdown and cleaning sessions...")
     for _s_id, data in list(sessions.items()):
         try: await data["browser"].close()
         except: pass
@@ -60,9 +57,8 @@ async def analyze_page_raw(page):
             const rect = el.getBoundingClientRect();
             return {
                 index: index, tag: el.tagName.toLowerCase(), 
-                id: el.id || null, class: el.className || null,
                 text: (el.innerText || el.value || '').trim().substring(0, 50),
-                href: el.href || null, isVisible: rect.width > 0 && rect.height > 0
+                isVisible: rect.width > 0 && rect.height > 0
             };
         });
     }
@@ -73,8 +69,6 @@ async def get_or_create_session(session_id: str):
     if session_id in sessions:
         data = sessions[session_id]
         if data["browser"].is_connected(): return data["page"]
-    
-    logger.info(f"🆕 Session Creation: {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
     context = await browser.new_context(viewport={"width": 1280, "height": 800})
     page = await context.new_page()
@@ -85,47 +79,40 @@ async def get_or_create_session(session_id: str):
 async def list_tools() -> list[types.Tool]:
     s_id = {"session_id": {"type": "string"}}
     return [
-        types.Tool(name="navigate", description="Navigue vers URL", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
-        types.Tool(name="scout_dom", description="Analyse les sélecteurs de la page", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic forcé sur élément", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="fill_input", description="Saisie de texte lente", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Téléchargement via PVC", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="screenshot", description="Capture d'écran HD", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="purge_downloads", description="Vide le dossier de téléchargement", inputSchema={"type":"object","properties":{},"required":[]}),
+        types.Tool(name="navigate", description="Navigue", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
+        types.Tool(name="scout_dom", description="Analyse DOM", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="click_element", description="Clic", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="fill_input", description="Saisie", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
+        types.Tool(name="download_file", description="Download Binaire Direct", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="screenshot", description="Capture Binaire Direct", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="purge_downloads", description="Nettoie PVC", inputSchema={"type":"object","properties":{},"required":[]}),
     ]
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict):
-    # Purge n'a pas besoin de session
     if name == "purge_downloads":
-        for filename in os.listdir(DOWNLOAD_PATH):
-            file_path = os.path.join(DOWNLOAD_PATH, filename)
-            if os.path.isfile(file_path) or os.path.islink(file_path): os.unlink(file_path)
-            elif os.path.isdir(file_path): shutil.rmtree(file_path)
-        return [types.TextContent(type="text", text="🧹 Dossier /app/downloads vidé.")]
+        shutil.rmtree(DOWNLOAD_PATH); os.makedirs(DOWNLOAD_PATH)
+        return [types.TextContent(type="text", text="Dossier vidé")]
 
     session_id = arguments.get("session_id")
     page = await get_or_create_session(session_id)
-    logger.info(f"🛠️ EXECUTE: {name} | SESSION: {session_id}")
     
     try:
         if name == "navigate":
-            await page.goto(arguments["url"], wait_until="networkidle", timeout=60000)
-            return [types.TextContent(type="text", text=f"📍 URL: {page.url}")]
+            await page.goto(arguments["url"], wait_until="networkidle")
+            return [types.TextContent(type="text", text=page.url)]
 
         elif name == "scout_dom":
             elements = await analyze_page_raw(page)
-            return [types.TextContent(type="text", text=json.dumps({"elements": elements}))]
+            return [types.TextContent(type="text", text=json.dumps(elements))]
 
         elif name == "click_element":
-            await page.click(arguments["selector"], force=True, timeout=15000)
-            await page.wait_for_load_state("networkidle")
-            return [types.TextContent(type="text", text="✅ Clic effectué.")]
+            await page.click(arguments["selector"], force=True)
+            return [types.TextContent(type="text", text="OK")]
 
         elif name == "fill_input":
-            await page.focus(arguments["selector"])
             await page.type(arguments["selector"], arguments["value"], delay=50)
-            return [types.TextContent(type="text", text="✍️ Saisie terminée.")]
+            return [types.TextContent(type="text", text="OK")]
 
         elif name == "download_file":
             async with page.expect_download() as download_info:
@@ -133,36 +120,33 @@ async def call_tool(name: str, arguments: dict):
             download = await download_info.value
             file_path = os.path.join(DOWNLOAD_PATH, download.suggested_filename)
             await download.save_as(file_path)
+            
             with open(file_path, "rb") as f:
-                content = f.read()
-            return [
-                types.TextContent(type="text", text=f"📥 File: {download.suggested_filename}"),
-                types.BlobContent(type="blob", blob=base64.b64encode(content).decode(), mimeType="application/octet-stream")
-            ]
+                data_b64 = base64.b64encode(f.read()).decode()
+            
+            # --- IMPORTANT: Retourne UNIQUEMENT le Blob pour forcer l'onglet binaire ---
+            return [types.BlobContent(type="blob", blob=data_b64, mimeType="application/octet-stream")]
 
         elif name == "screenshot":
-            img = await page.screenshot(type="png", full_page=False)
+            img = await page.screenshot(type="png")
             return [types.BlobContent(type="blob", blob=base64.b64encode(img).decode(), mimeType="image/png")]
 
     except Exception as e:
-        logger.error(f"❌ Error in {name}: {e}")
-        img_err = await page.screenshot(type="png")
-        return [types.TextContent(type="text", text=f"⚠️ {str(e)}"), 
-                types.BlobContent(type="blob", blob=base64.b64encode(img_err).decode(), mimeType="image/png")]
+        logger.error(f"Error: {e}")
+        return [types.TextContent(type="text", text=f"Erreur: {str(e)}")]
 
-# --- SSE INFRA ---
+# --- INFRA ---
 async def sse_endpoint(request: Request):
     async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (r, w):
         await mcp_server.run(r, w, mcp_server.create_initialization_options())
 
 @app.get("/health")
-async def health(): return {"status": "ok", "sessions": len(sessions)}
+async def health(): return {"status": "ok"}
 
-sse_app = Starlette(routes=[
+app.mount("/", Starlette(routes=[
     Route("/sse", sse_endpoint, methods=["GET"]),
     Mount("/messages/", app=sse_transport.handle_post_message),
-])
-app.mount("/", sse_app)
+]))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080, access_log=True)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
