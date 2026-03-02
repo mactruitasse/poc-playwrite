@@ -99,7 +99,7 @@ def file_sha256(path: str) -> str:
 
 
 def safe_json_text(payload: dict) -> str:
-    # Garantit une string JSON même si l'appelant passe des objets imbriqués
+    # Garantit une string JSON, conserve les accents
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
@@ -381,7 +381,6 @@ async def call_tool(name: str, arguments: dict):
 
                 logger.info(f"[SUCCESS] Fichier recupere : {file_path} | size={size_bytes} bytes")
 
-                # IMPORTANT: ne pas renvoyer le base64 complet (n8n/MCP limite de payload)
                 payload = {
                     "result": "OK",
                     "filename": filename,
@@ -401,8 +400,10 @@ async def call_tool(name: str, arguments: dict):
 
         elif name == "download_pdf_wikipedia":
             # FIX1: éviter les downloads 0-octet en cliquant.
-            # On récupère l'URL action du formulaire mw-download-form et on télécharge via page.request.
+            # On attend le formulaire #mw-download-form puis on télécharge via page.request.
             try:
+                await page.wait_for_selector("#mw-download-form", timeout=30000)
+
                 action_url = await page.evaluate(
                     """
                     () => {
@@ -412,7 +413,7 @@ async def call_tool(name: str, arguments: dict):
                     """
                 )
                 if not action_url:
-                    payload = {"result": "ERROR", "error": "mw-download-form not found", "current_url": page.url}
+                    payload = {"result": "ERROR", "error": "mw-download-form not found (after wait)", "current_url": page.url}
                     return [types.TextContent(type="text", text=safe_json_text(payload))]
 
                 logger.info(f"[WIKI_PDF] GET {action_url}")
@@ -445,7 +446,6 @@ async def call_tool(name: str, arguments: dict):
                     pass
 
                 filename = parse_filename_from_content_disposition(cd) or "wikipedia.pdf"
-                # sécurité basique: éviter chemins
                 filename = os.path.basename(filename)
 
                 file_path = os.path.join(DOWNLOAD_PATH, filename)
@@ -480,7 +480,6 @@ async def call_tool(name: str, arguments: dict):
             offset = int(arguments["offset"])
             length = int(arguments["length"])
 
-            # Sécurité: empêcher lecture hors du dossier download
             abs_path = os.path.abspath(path)
             abs_dl = os.path.abspath(DOWNLOAD_PATH)
 
