@@ -52,12 +52,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
-# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage) ---
+# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage métier) ---
 async def extract_deep_dom(page):
-    logger.info("🔍 [DOM] Exécution du RAW Scout Report (Extraction exhaustive sans filtrage)...")
+    logger.info("🔍 [DOM] Exécution du RAW Scout Report (Extraction exhaustive)...")
     script = """
     () => {
-        // On récupère TOUS les éléments pour voir la structure des menus et conteneurs
         const elements = document.querySelectorAll('*');
         return Array.from(elements).map((el, index) => {
             const rect = el.getBoundingClientRect();
@@ -66,17 +65,14 @@ async def extract_deep_dom(page):
                 tag: el.tagName.toLowerCase(),
                 id: el.id || null,
                 class: el.className || null,
-                text: (el.innerText || '').trim().substring(0, 80),
+                text: (el.innerText || '').trim().substring(0, 100),
                 href: el.href || null,
                 ariaExpanded: el.getAttribute('aria-expanded'),
                 ariaLabel: el.getAttribute('aria-label'),
                 isVisible: rect.width > 0 && rect.height > 0,
                 rect: { w: rect.width, h: rect.height, t: rect.top, l: rect.left }
             };
-        }).filter(el => 
-            // On ne filtre que les balises techniques inutiles pour le clic
-            !['script', 'style', 'meta', 'link', 'noscript'].includes(el.tag)
-        );
+        }).filter(el => !['script', 'style', 'meta', 'link', 'noscript'].includes(el.tag));
     }
     """
     return await page.evaluate(script)
@@ -86,7 +82,7 @@ async def get_or_create_session(session_id: str):
         data = sessions[session_id]
         if data["browser"].is_connected(): return data["page"]
     
-    logger.info(f"🆕 [CDP] Création d'une nouvelle session persistante : {session_id}")
+    logger.info(f"🆕 [CDP] Création d'une session persistante : {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
     context = await browser.new_context(viewport={"width": 1920, "height": 1080})
     page = await context.new_page()
@@ -97,19 +93,19 @@ async def get_or_create_session(session_id: str):
 async def list_tools() -> list[types.Tool]:
     s_id = {"session_id": {"type": "string", "description": "ID de session persistante"}}
     return [
-        types.Tool(name="navigate", description="Navigation et RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
+        types.Tool(name="navigate", description="Navigation + RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
         types.Tool(name="scout_dom", description="Analyse exhaustive des éléments actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic forcé avec diagnostic ultra-verbeux", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="click_element", description="Clic + Diagnostic + RAW Scout de la nouvelle page", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Saisie de texte (délai humain)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Téléchargement direct vers le PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="screenshot", description="Capture d'écran HD (Onglet Binary n8n)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="download_file", description="Téléchargement vers PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="screenshot", description="Capture d'écran HD (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
         types.Tool(name="purge_downloads", description="Vider physiquement le volume /app/downloads", inputSchema={"type":"object","properties":{},"required":[]}),
     ]
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict):
     if name == "purge_downloads":
-        logger.info(f"🧹 [PVC] Purge complète du dossier {DOWNLOAD_PATH}...")
+        logger.info(f"🧹 [PVC] Purge du dossier {DOWNLOAD_PATH}...")
         shutil.rmtree(DOWNLOAD_PATH); os.makedirs(DOWNLOAD_PATH)
         return [types.TextContent(type="text", text="🧹 Stockage PVC nettoyé.")]
 
@@ -120,28 +116,33 @@ async def call_tool(name: str, arguments: dict):
     try:
         if name == "navigate":
             await page.goto(arguments["url"], wait_until="networkidle", timeout=60000)
-            dom_report = await extract_deep_dom(page)
-            return [types.TextContent(type="text", text=json.dumps({"url": page.url, "scout_report": dom_report}, indent=2))]
+            dom = await extract_deep_dom(page)
+            return [types.TextContent(type="text", text=json.dumps({"url": page.url, "scout_report": dom}, indent=2))]
 
         elif name == "scout_dom":
-            dom_report = await extract_deep_dom(page)
-            return [types.TextContent(type="text", text=json.dumps({"elements": dom_report}, indent=2))]
+            dom = await extract_deep_dom(page)
+            return [types.TextContent(type="text", text=json.dumps({"elements": dom}, indent=2))]
 
         elif name == "click_element":
             selector = arguments["selector"]
-            count = await page.locator(selector).count()
-            if count == 0:
+            # Diagnostic pré-clic
+            if await page.locator(selector).count() == 0:
                 logger.error(f"❌ [DOM ERROR] Sélecteur '{selector}' introuvable.")
                 return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
             
             try:
                 await page.click(selector, force=True, timeout=15000)
                 await page.wait_for_load_state("networkidle")
-                return [types.TextContent(type="text", text=json.dumps({"action": "click", "result": "OK"}))]
+                # --- AUTO-SCOUT APRES CLIC ---
+                new_dom = await extract_deep_dom(page)
+                return [types.TextContent(type="text", text=json.dumps({
+                    "action": "click",
+                    "result": "OK",
+                    "new_url": page.url,
+                    "scout_report": new_dom
+                }, indent=2))]
             except Exception as e:
-                # --- DIAGNOSTIC VERBEUX ---
-                viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, top: r.top, display: window.getComputedStyle(e).display, ariaExpanded: e.getAttribute('aria-expanded') }}; }}", selector)
-                logger.warning(f"⚠️ [TIMEOUT] Diagnostic: {viz}")
+                viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", selector)
                 return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
 
         elif name == "fill_input":
