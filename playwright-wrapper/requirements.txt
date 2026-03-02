@@ -3,3 +3,4 @@ uvicorn
 mcp
 playwright
 pydantic-settings
+websockets

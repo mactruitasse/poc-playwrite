@@ -1,0 +1,152 @@
+import logging
+import asyncio
+import base64
+import json
+import os
+import time
+
+# --- INITIALISATION DU LOGGING (Avant toute utilisation) ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - [%(levelname)s] - %(message)s'
+)
+logger = logging.getLogger("mcp-session-manager")
+
+try:
+    import uvicorn
+    from fastapi import FastAPI, Request, Response
+    from mcp.server import Server
+    from mcp.server.sse import SseServerTransport
+    import mcp.types as types
+    from playwright.async_api import async_playwright
+except ImportError as e:
+    print(f"💥 Erreur d'import : {e}")
+    raise
+
+# --- CONFIGURATION APP ---
+app = FastAPI(title="n8n-Persistent-Expert-Scout")
+mcp_server = Server("playwright-tools")
+sessions = {}
+pw_instance = None
+
+# Infrastructure Kind/Browserless
+BROWSERLESS_URL = os.getenv("BROWSERLESS_URL", "ws://browserless.n8n-prod.svc.cluster.local:3000")
+
+async def get_pw():
+    global pw_instance
+    if not pw_instance:
+        logger.info("🚀 [SYSTEM] Initialisation moteur Playwright...")
+        pw_instance = await async_playwright().start()
+    return pw_instance
+
+async def get_or_create_session(session_id: str):
+    pw = await get_pw()
+    if session_id in sessions:
+        ctx = sessions[session_id]["context"]
+        if ctx.browser and ctx.browser.is_connected():
+            logger.info(f"♻️  Session reprise: {session_id}")
+            return sessions[session_id]["page"]
+    
+    logger.info(f"🆕 Création session: {session_id}")
+    browser = await pw.chromium.connect_over_cdp(BROWSERLESS_URL)
+    context = await browser.new_context()
+    page = await context.new_page()
+    sessions[session_id] = {"context": context, "page": page}
+    return page
+
+async def analyze_page_raw(page):
+    """Extraction brute du DOM pour les développeurs."""
+    script = """
+    () => {
+        const elements = document.querySelectorAll('button, input, a, select, textarea, [role="button"]');
+        return Array.from(elements).map((el, index) => {
+            const rect = el.getBoundingClientRect();
+            return {
+                index: index,
+                tag: el.tagName.toLowerCase(),
+                id: el.id ? '#' + el.id : null,
+                class: el.className ? '.' + el.className.split(' ').join('.') : null,
+                text: (el.innerText || el.value || el.placeholder || '').trim(),
+                href: el.tagName === 'A' ? el.href : null,
+                aria: el.getAttribute('aria-label') || el.name || el.getAttribute('role') || null,
+                isVisible: rect.width > 0 && rect.height > 0,
+                type: el.type || null
+            };
+        });
+    }
+    """
+    return await page.evaluate(script)
+
+@app.get("/health")
+async def health(): 
+    return {"status": "ok", "sessions": len(sessions)}
+
+@mcp_server.list_tools()
+async def list_tools() -> list[types.Tool]:
+    s_id = {"session_id": {"type": "string", "description": "ID session n8n"}}
+    return [
+        types.Tool(name="navigate", description="Navigue, scout le DOM et capture", 
+                   inputSchema={"type": "object", "properties": {"url": {"type": "string"}, **s_id}, "required": ["url", "session_id"]}),
+        types.Tool(name="click_element", description="Clic CSS", 
+                   inputSchema={"type": "object", "properties": {"selector": {"type": "string"}, **s_id}, "required": ["selector", "session_id"]}),
+        types.Tool(name="fill_input", description="Saisie texte", 
+                   inputSchema={"type": "object", "properties": {"selector": {"type": "string"}, "value": {"type": "string"}, **s_id}, "required": ["selector", "value", "session_id"]}),
+        types.Tool(name="screenshot", description="Capture manuelle", 
+                   inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]})
+    ]
+
+@mcp_server.call_tool()
+async def call_tool(name: str, arguments: dict):
+    session_id = arguments.get("session_id")
+    page = await get_or_create_session(session_id)
+    logger.info(f"🛠️  Tool: {name} | Session: {session_id}")
+    
+    try:
+        if name == "navigate":
+            await page.goto(arguments["url"], wait_until="networkidle")
+            elements = await analyze_page_raw(page)
+            # On ajoute un screenshot automatique au format réduit (JPEG) pour le rapport de navigation
+            img = await page.screenshot(type="jpeg", quality=50)
+            img_b64 = base64.b64encode(img).decode()
+            
+            return [types.TextContent(type="text", text=json.dumps({
+                "url": page.url,
+                "title": await page.title(),
+                "screenshot": f"data:image/jpeg;base64,{img_b64}",
+                "all_elements": elements
+            }))]
+        
+        elif name == "click_element":
+            await page.click(arguments["selector"])
+            return [types.TextContent(type="text", text=json.dumps({"new_url": page.url}))]
+
+        elif name == "fill_input":
+            await page.fill(arguments["selector"], arguments["value"])
+            return [types.TextContent(type="text", text=json.dumps({"status": "success"}))]
+
+        elif name == "screenshot":
+            img = await page.screenshot(type="png")
+            return [types.TextContent(type="text", text=f"data:image/png;base64,{base64.b64encode(img).decode()}")]
+            
+    except Exception as e:
+        logger.error(f"💥 Erreur: {e}")
+        return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+# --- TRANSPORT SSE ---
+sse_transport = SseServerTransport("/messages")
+@app.get("/sse")
+async def sse_endpoint(request: Request):
+    async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (r, w):
+        await mcp_server.run(r, w, mcp_server.create_initialization_options())
+
+@app.post("/messages")
+async def messages_endpoint(request: Request):
+    await sse_transport.handle_post_message(request.scope, request.receive, request._send)
+    return Response(status_code=202)
+
+if __name__ == "__main__":
+    # Nettoyage hard du traceback Uvicorn/SSE
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config["loggers"]["uvicorn.error"]["level"] = "CRITICAL"
+    
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, log_config=log_config, access_log=True)
