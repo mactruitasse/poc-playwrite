@@ -88,7 +88,6 @@ async def get_or_create_session(session_id: str):
     logger.info(f"[CDP] Creation d'une session DESKTOP HD (1920x1080) : {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
     
-    # Force le mode Bureau et un User-Agent propre pour bypass les anti-bots
     context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -104,9 +103,9 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(name="navigate", description="Navigation + RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
         types.Tool(name="scout_dom", description="Analyse exhaustive des elements actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic (Support 'idx:N') + Wait", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"wait_for_selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="click_element", description="Clic (Support Index 'idx:N') + Wait", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"wait_for_selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Saisie de texte", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Telechargement (Support 'idx:N') avec simulation souris", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="download_file", description="Telechargement (Support 'idx:N') avec simulation souris humaine", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="screenshot", description="Capture d'ecran HD", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
         types.Tool(name="purge_downloads", description="Vider /app/downloads", inputSchema={"type":"object","properties":{},"required":[]}),
     ]
@@ -139,8 +138,13 @@ async def call_tool(name: str, arguments: dict):
             
             if selector.startswith("idx:"):
                 index = int(selector.split(":")[1])
-                logger.info(f"[DOM] Clic force via JS sur l'index : {index}")
-                await page.evaluate(f"document.querySelectorAll('*')[{index}].click()")
+                logger.info(f"[DOM] Clic force via JS (Down/Up/Click) sur l'index : {index}")
+                await page.evaluate(f"""
+                    const el = document.querySelectorAll('*')[{index}];
+                    el.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
+                    el.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
+                    el.click();
+                """)
             else:
                 if await page.locator(selector).count() == 0:
                     return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
@@ -164,28 +168,36 @@ async def call_tool(name: str, arguments: dict):
 
         elif name == "download_file":
             selector = arguments["selector"]
-            logger.info(f"[DOWNLOAD] Tentative de telechargement via : {selector}")
+            logger.info(f"[DOWNLOAD] Strategie Mouse-Simulation sur : {selector}")
             
-            async with page.expect_download() as download_info:
+            # On attend le download et on clique en meme temps
+            async with page.expect_download(timeout=30000) as download_info:
                 if selector.startswith("idx:"):
                     index = int(selector.split(":")[1])
-                    logger.info(f"[DOM] Clic force par index pour telechargement : {index}")
-                    await page.evaluate(f"document.querySelectorAll('*')[{index}].click()")
+                    logger.info(f"[DOM] Force Clic par index pour telechargement : {index}")
+                    await page.evaluate(f"""
+                        const el = document.querySelectorAll('*')[{index}];
+                        el.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
+                        el.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
+                        el.click();
+                    """)
                 else:
                     locator = page.locator(selector)
                     await locator.wait_for(state="attached", timeout=15000)
                     box = await locator.bounding_box()
                     
                     if box and box['width'] > 0:
-                        # Simulation souris reelle (mouvements + pression)
                         await page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
                         await page.mouse.down()
                         await asyncio.sleep(0.1)
                         await page.mouse.up()
                     else:
-                        # Fallback JS si Playwright juge l'element invisible (rect 0x0)
-                        logger.warning(f"[DOWNLOAD] Element non-cliquable souris (0x0), fallback eval JS...")
-                        await page.eval_on_selector(selector, "el => el.click()")
+                        logger.warning(f"[DOWNLOAD] Element invisible, force via JS events...")
+                        await page.eval_on_selector(selector, """el => {
+                            el.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+                            el.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+                            el.click();
+                        }""")
             
             download = await download_info.value
             file_path = os.path.join(DOWNLOAD_PATH, download.suggested_filename)
