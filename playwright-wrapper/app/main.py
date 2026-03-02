@@ -7,7 +7,7 @@ import sys
 import shutil
 from contextlib import asynccontextmanager
 
-# --- CONFIGURATION LOGGING (Direct et Transparent) ---
+# --- CONFIGURATION LOGGING (Direct et Transparent, sans emojis) ---
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
@@ -88,7 +88,6 @@ async def get_or_create_session(session_id: str):
     logger.info(f"[CDP] Creation d'une session DESKTOP HD (1920x1080) : {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
     
-    # Force le mode Bureau pour eviter les menus mobiles compresse
     context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -104,11 +103,11 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(name="navigate", description="Navigation + RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
         types.Tool(name="scout_dom", description="Analyse exhaustive des elements actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic + Wait + Rapport DOM Post-Clic", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"wait_for_selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="click_element", description="Clic (Support Index 'idx:N') + Wait", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"wait_for_selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Saisie de texte", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Telechargement force vers PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="screenshot", description="Capture d'ecran HD (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="purge_downloads", description="Vider physiquement le volume /app/downloads", inputSchema={"type":"object","properties":{},"required":[]}),
+        types.Tool(name="download_file", description="Telechargement avec simulation souris humaine", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="screenshot", description="Capture d'ecran HD", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="purge_downloads", description="Vider /app/downloads", inputSchema={"type":"object","properties":{},"required":[]}),
     ]
 
 @mcp_server.call_tool()
@@ -137,14 +136,17 @@ async def call_tool(name: str, arguments: dict):
             selector = arguments["selector"]
             wait_for = arguments.get("wait_for_selector")
             
-            if await page.locator(selector).count() == 0:
-                logger.error(f"[DOM ERROR] Selecteur '{selector}' introuvable.")
-                return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
-            
-            await page.click(selector, force=True, timeout=15000)
+            if selector.startswith("idx:"):
+                index = int(selector.split(":")[1])
+                logger.info(f"[DOM] Clic force sur l'index : {index}")
+                await page.evaluate(f"document.querySelectorAll('*')[{index}].click()")
+            else:
+                if await page.locator(selector).count() == 0:
+                    return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
+                await page.click(selector, force=True, timeout=15000)
             
             if wait_for:
-                logger.info(f"[WAIT] Attente explicite de l'element : {wait_for}")
+                logger.info(f"[WAIT] Attente de : {wait_for}")
                 await page.wait_for_selector(wait_for, state="attached", timeout=15000)
             else:
                 try: await page.wait_for_load_state("networkidle", timeout=5000)
@@ -152,9 +154,7 @@ async def call_tool(name: str, arguments: dict):
                 await asyncio.sleep(1)
 
             new_dom = await extract_deep_dom(page)
-            return [types.TextContent(type="text", text=json.dumps({
-                "action": "click", "result": "OK", "new_url": page.url, "scout_report": new_dom
-            }, indent=2))]
+            return [types.TextContent(type="text", text=json.dumps({"action": "click", "result": "OK", "new_url": page.url, "scout_report": new_dom}, indent=2))]
 
         elif name == "fill_input":
             await page.focus(arguments["selector"])
@@ -163,20 +163,30 @@ async def call_tool(name: str, arguments: dict):
 
         elif name == "download_file":
             selector = arguments["selector"]
-            logger.info(f"[DOWNLOAD] Tentative de telechargement force sur : {selector}")
+            logger.info(f"[DOWNLOAD] Clic humain force sur : {selector}")
             
-            # Utilise state=attached car le rect peut etre a 0x0
-            await page.wait_for_selector(selector, state="attached", timeout=15000)
+            locator = page.locator(selector)
+            await locator.wait_for(state="attached", timeout=15000)
+            
+            box = await locator.bounding_box()
             
             async with page.expect_download() as download_info:
-                # Injection JS pour forcer le clic meme si Playwright considere l'element invisible
-                await page.eval_on_selector(selector, "el => el.click()")
+                if box and box['width'] > 0:
+                    # Simulation souris reelle (Anti-bot friendly)
+                    await page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                    await page.mouse.down()
+                    await asyncio.sleep(0.1)
+                    await page.mouse.up()
+                else:
+                    # Fallback si l'element est 0x0 ou hors-champ : Eval JS force
+                    logger.warning(f"[DOWNLOAD] Element invisible (rect 0x0), tentative via eval JS...")
+                    await page.eval_on_selector(selector, "el => el.click()")
             
             download = await download_info.value
             file_path = os.path.join(DOWNLOAD_PATH, download.suggested_filename)
             await download.save_as(file_path)
             
-            logger.info(f"[SUCCESS] Fichier sauvegarde sur PVC : {file_path}")
+            logger.info(f"[SUCCESS] Fichier binaire recupere : {file_path}")
             
             with open(file_path, "rb") as f:
                 content = f.read()
@@ -189,11 +199,7 @@ async def call_tool(name: str, arguments: dict):
 
     except Exception as e:
         logger.error(f"[ERROR] Technique: {str(e)}")
-        viz = "N/A"
-        try:
-            viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", arguments.get("selector", ""))
-        except: pass
-        return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
+        return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
 # --- ROUTAGE INFRA ---
 async def sse_endpoint(request: Request):
