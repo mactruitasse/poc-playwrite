@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 [SYSTEM] Start Playwright Engine and CDP Connection pool...")
     pw_manager = await async_playwright().start()
     yield
-    logger.info("🛑 [SYSTEM] Shutdown : Fermeture des sessions et arrêt de l'engine...")
+    logger.info("🛑 [SYSTEM] Shutdown : Fermeture propre de toutes les sessions...")
     for _s_id, data in list(sessions.items()):
         try:
             await data["browser"].close()
@@ -137,6 +137,7 @@ async def call_tool(name: str, arguments: dict):
             selector = arguments["selector"]
             wait_for = arguments.get("wait_for_selector")
             
+            # Diagnostic pré-clic
             if await page.locator(selector).count() == 0:
                 logger.error(f"❌ [DOM ERROR] Sélecteur '{selector}' introuvable.")
                 return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
@@ -151,7 +152,7 @@ async def call_tool(name: str, arguments: dict):
                     await page.wait_for_load_state("networkidle", timeout=5000)
                 except:
                     pass
-                await asyncio.sleep(1)
+                await asyncio.sleep(1) # Délai de sécurité pour le rendu JS
 
             new_dom = await extract_deep_dom(page)
             return [types.TextContent(type="text", text=json.dumps({
@@ -167,6 +168,7 @@ async def call_tool(name: str, arguments: dict):
             return [types.TextContent(type="text", text=json.dumps({"action": "fill", "result": "OK"}))]
 
         elif name == "download_file":
+            # Sécurité : On attend que le bouton soit cliquable
             await page.wait_for_selector(arguments["selector"], state="visible", timeout=15000)
             async with page.expect_download() as download_info:
                 await page.click(arguments["selector"], force=True)
