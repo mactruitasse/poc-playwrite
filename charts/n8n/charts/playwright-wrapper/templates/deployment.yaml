@@ -18,7 +18,9 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ include "playwright-wrapper.serviceAccountName" . }}
+      # Fix pour les permissions d'écriture sur le PVC monté
       securityContext:
+        fsGroup: 1000
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: wrapper
@@ -41,6 +43,8 @@ spec:
               value: {{ .Values.env.playwrightPodLabelValue | quote }}
             - name: PW_MCP_PORT
               value: {{ .Values.env.playwrightMcpPort | quote }}
+            - name: DOWNLOAD_PATH
+              value: "/app/downloads"
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           readinessProbe:
@@ -58,6 +62,11 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: downloads-storage
+              mountPath: /app/downloads
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: downloads-storage
+          persistentVolumeClaim:
+            claimName: {{ include "playwright-wrapper.fullname" . }}-downloads
