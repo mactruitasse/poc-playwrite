@@ -6,7 +6,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 
-# --- CONFIGURATION LOGGING (Ultra-Verbeuse pour Kubernetes) ---
+# --- CONFIGURATION LOGGING ---
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
@@ -26,6 +26,11 @@ try:
 except ImportError as e:
     logger.error(f"💥 Dépendance manquante : {e}")
     raise
+
+# --- CONFIGURATION STORAGE ---
+# Ce chemin correspond au mountPath défini dans le deployment.yaml
+DOWNLOAD_PATH = os.getenv("DOWNLOAD_PATH", "/app/downloads")
+os.makedirs(DOWNLOAD_PATH, exist_ok=True)
 
 mcp_server = Server("playwright-tools")
 sessions: dict[str, dict] = {}
@@ -48,7 +53,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
 async def analyze_page_raw(page):
-    """L'outil indispensable pour tes devs : extraction JSON du DOM."""
     script = """
     () => {
         const elements = document.querySelectorAll('button, input, a, select, textarea, [role="button"]');
@@ -72,7 +76,7 @@ async def get_or_create_session(session_id: str):
     
     logger.info(f"🆕 Session Creation: {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
-    context = await browser.new_context(viewport={"width": 1280, "height": 800}) # Ratio stable
+    context = await browser.new_context(viewport={"width": 1280, "height": 800})
     page = await context.new_page()
     sessions[session_id] = {"context": context, "page": page, "browser": browser}
     return page
@@ -84,7 +88,7 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(name="navigate", description="Navigue + Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
         types.Tool(name="click_element", description="Forced Clic", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Type slow", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Binaire", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="download_file", description="Binaire (via PVC)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="screenshot", description="Capture Viewport High-Res", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
     ]
 
@@ -92,7 +96,6 @@ async def list_tools() -> list[types.Tool]:
 async def call_tool(name: str, arguments: dict):
     session_id = arguments.get("session_id")
     page = await get_or_create_session(session_id)
-    # LOG MÉTIER EXPLICITE : Sera visible dans les logs Kubernetes
     logger.info(f"🛠️  EXECUTE: {name} | SESSION: {session_id}")
     
     try:
@@ -115,16 +118,38 @@ async def call_tool(name: str, arguments: dict):
             async with page.expect_download() as download_info:
                 await page.click(arguments["selector"], force=True)
             download = await download_info.value
-            content = await (await download.create_read_stream()).read()
-            return [
-                types.TextContent(type="text", text=f"📥 File: {download.suggested_filename}"),
-                types.ImageContent(type="image", data=base64.b64encode(content).decode(), mimeType="application/octet-stream")
-            ]
+            
+            # Sauvegarde physique sur le PVC pour éviter les saturations RAM
+            file_path = os.path.join(DOWNLOAD_PATH, download.suggested_filename)
+            await download.save_as(file_path)
+            logger.info(f"💾 File persisted to PVC: {file_path}")
+
+            # Lecture binaire pour transfert vers n8n
+            with open(file_path, "rb") as f:
+                content = f.read()
+
+            # Utilisation de BlobContent si supporté, sinon fallback ImageContent
+            try:
+                return [
+                    types.TextContent(type="text", text=f"📥 Sauvegardé: {download.suggested_filename}"),
+                    types.BlobContent(
+                        type="blob",
+                        blob=base64.b64encode(content).decode(),
+                        mimeType="application/octet-stream"
+                    )
+                ]
+            except AttributeError:
+                return [
+                    types.TextContent(type="text", text=f"📥 Sauvegardé: {download.suggested_filename}"),
+                    types.ImageContent(type="image", data=base64.b64encode(content).decode(), mimeType="application/octet-stream")
+                ]
 
         elif name == "screenshot":
-            # On enlève full_page pour éviter les bugs de scroll, on capture le Viewport
             img = await page.screenshot(type="png", full_page=False)
-            return [types.ImageContent(type="image", data=base64.b64encode(img).decode(), mimeType="image/png")]
+            try:
+                return [types.BlobContent(type="blob", blob=base64.b64encode(img).decode(), mimeType="image/png")]
+            except AttributeError:
+                return [types.ImageContent(type="image", data=base64.b64encode(img).decode(), mimeType="image/png")]
 
     except Exception as e:
         logger.error(f"❌ Error in {name}: {e}")
@@ -148,4 +173,4 @@ sse_app = Starlette(routes=[
 app.mount("/", sse_app)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080, access_log=True) # access_log=True restaure les logs HTTP
+    uvicorn.run(app, host="0.0.0.0", port=8080, access_log=True)
