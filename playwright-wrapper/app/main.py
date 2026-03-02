@@ -52,28 +52,31 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
-# --- ANALYSE DOM PROFONDE (Scout Report Verbeux) ---
+# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage) ---
 async def extract_deep_dom(page):
-    logger.info("🔍 [DOM] Exécution du script d'analyse profonde (Scout Report) pour extraction structurée...")
+    logger.info("🔍 [DOM] Exécution du RAW Scout Report (Extraction exhaustive sans filtrage)...")
     script = """
     () => {
-        const elements = document.querySelectorAll('button, input, a, select, textarea, [role="button"], h1, h2, h3, p, span, div');
+        // On récupère TOUS les éléments pour voir la structure des menus et conteneurs
+        const elements = document.querySelectorAll('*');
         return Array.from(elements).map((el, index) => {
             const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            if (rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && (el.innerText.trim().length > 0 || el.tagName === 'INPUT')) {
-                return {
-                    index: index,
-                    tag: el.tagName.toLowerCase(),
-                    id: el.id || null,
-                    class: el.className || null,
-                    text: (el.innerText || el.value || '').trim().substring(0, 150),
-                    href: el.href || null,
-                    isVisible: true
-                };
-            }
-            return null;
-        }).filter(x => x !== null);
+            return {
+                index: index,
+                tag: el.tagName.toLowerCase(),
+                id: el.id || null,
+                class: el.className || null,
+                text: (el.innerText || '').trim().substring(0, 80),
+                href: el.href || null,
+                ariaExpanded: el.getAttribute('aria-expanded'),
+                ariaLabel: el.getAttribute('aria-label'),
+                isVisible: rect.width > 0 && rect.height > 0,
+                rect: { w: rect.width, h: rect.height, t: rect.top, l: rect.left }
+            };
+        }).filter(el => 
+            // On ne filtre que les balises techniques inutiles pour le clic
+            !['script', 'style', 'meta', 'link', 'noscript'].includes(el.tag)
+        );
     }
     """
     return await page.evaluate(script)
@@ -94,9 +97,9 @@ async def get_or_create_session(session_id: str):
 async def list_tools() -> list[types.Tool]:
     s_id = {"session_id": {"type": "string", "description": "ID de session persistante"}}
     return [
-        types.Tool(name="navigate", description="Navigation et Scout DOM complet", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
-        types.Tool(name="scout_dom", description="Extraction profonde des sélecteurs actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic forcé avec diagnostic verbeux", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="navigate", description="Navigation et RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
+        types.Tool(name="scout_dom", description="Analyse exhaustive des éléments actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="click_element", description="Clic forcé avec diagnostic ultra-verbeux", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Saisie de texte (délai humain)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
         types.Tool(name="download_file", description="Téléchargement direct vers le PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="screenshot", description="Capture d'écran HD (Onglet Binary n8n)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
@@ -126,10 +129,9 @@ async def call_tool(name: str, arguments: dict):
 
         elif name == "click_element":
             selector = arguments["selector"]
-            # --- DIAGNOSTIC PRE-CLIC ---
             count = await page.locator(selector).count()
             if count == 0:
-                logger.error(f"❌ [DOM ERROR] Le sélecteur '{selector}' est introuvable dans le DOM.")
+                logger.error(f"❌ [DOM ERROR] Sélecteur '{selector}' introuvable.")
                 return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
             
             try:
@@ -137,9 +139,9 @@ async def call_tool(name: str, arguments: dict):
                 await page.wait_for_load_state("networkidle")
                 return [types.TextContent(type="text", text=json.dumps({"action": "click", "result": "OK"}))]
             except Exception as e:
-                # --- DIAGNOSTIC POST-TIMEOUT ---
-                logger.warning(f"⚠️ [TIMEOUT DEBUG] Clic échoué sur {selector}. Analyse de visibilité...")
-                viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, top: r.top, left: r.left, display: window.getComputedStyle(e).display }}; }}", selector)
+                # --- DIAGNOSTIC VERBEUX ---
+                viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, top: r.top, display: window.getComputedStyle(e).display, ariaExpanded: e.getAttribute('aria-expanded') }}; }}", selector)
+                logger.warning(f"⚠️ [TIMEOUT] Diagnostic: {viz}")
                 return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
 
         elif name == "fill_input":
@@ -162,7 +164,7 @@ async def call_tool(name: str, arguments: dict):
             return [types.ImageContent(type="image", data=base64.b64encode(img).decode(), mimeType="image/png")]
 
     except Exception as e:
-        logger.error(f"❌ [ERROR] technique lors de l'appel {name}: {str(e)}")
+        logger.error(f"❌ [ERROR] technique: {str(e)}")
         return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
 # --- ROUTAGE INFRA (Fix Readiness/Liveness Probes 404) ---
