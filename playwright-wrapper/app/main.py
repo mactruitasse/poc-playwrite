@@ -7,7 +7,7 @@ import sys
 import shutil
 from contextlib import asynccontextmanager
 
-# --- CONFIGURATION LOGGING (Expert Peer-to-Peer, Ultra-Verbeux) ---
+# --- CONFIGURATION LOGGING (Direct et Transparent) ---
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
@@ -25,7 +25,7 @@ try:
     import mcp.types as types
     from playwright.async_api import async_playwright
 except ImportError as e:
-    logger.error(f"💥 [FATAL] Dépendance manquante dans le Pod : {e}")
+    logger.error(f"[FATAL] Dependance manquante dans le Pod : {e}")
     raise
 
 # --- ARCHITECTURE IMMUABLE (KIND/PVC/CDP) ---
@@ -41,10 +41,10 @@ sse_transport = SseServerTransport("/messages/")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pw_manager
-    logger.info("🚀 [SYSTEM] Start Playwright Engine and CDP Connection pool...")
+    logger.info("[SYSTEM] Start Playwright Engine and CDP Connection pool...")
     pw_manager = await async_playwright().start()
     yield
-    logger.info("🛑 [SYSTEM] Shutdown : Fermeture propre de toutes les sessions...")
+    logger.info("[SYSTEM] Shutdown : Fermeture propre de toutes les sessions...")
     for _s_id, data in list(sessions.items()):
         try:
             await data["browser"].close()
@@ -54,9 +54,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
-# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage métier) ---
+# --- ANALYSE DOM BRUTE (RAW Scout Report) ---
 async def extract_deep_dom(page):
-    logger.info("🔍 [DOM] Exécution du RAW Scout Report (Extraction exhaustive)...")
+    logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive)...")
     script = """
     () => {
         const elements = document.querySelectorAll('*');
@@ -85,10 +85,10 @@ async def get_or_create_session(session_id: str):
         if data["browser"].is_connected():
             return data["page"]
     
-    logger.info(f"🆕 [CDP] Création d'une session DESKTOP HD (1920x1080) : {session_id}")
+    logger.info(f"[CDP] Creation d'une session DESKTOP HD (1920x1080) : {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
     
-    # --- FORCE DESKTOP VIEWPORT & USER AGENT ---
+    # Force le mode Bureau pour eviter les menus mobiles compresse
     context = await browser.new_context(
         viewport={"width": 1920, "height": 1080},
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -103,25 +103,25 @@ async def list_tools() -> list[types.Tool]:
     s_id = {"session_id": {"type": "string", "description": "ID de session persistante"}}
     return [
         types.Tool(name="navigate", description="Navigation + RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
-        types.Tool(name="scout_dom", description="Analyse exhaustive des éléments actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="scout_dom", description="Analyse exhaustive des elements actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
         types.Tool(name="click_element", description="Clic + Wait + Rapport DOM Post-Clic", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"wait_for_selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="fill_input", description="Saisie de texte (délai humain)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Téléchargement vers PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="screenshot", description="Capture d'écran HD (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="fill_input", description="Saisie de texte", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
+        types.Tool(name="download_file", description="Telechargement force vers PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="screenshot", description="Capture d'ecran HD (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
         types.Tool(name="purge_downloads", description="Vider physiquement le volume /app/downloads", inputSchema={"type":"object","properties":{},"required":[]}),
     ]
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict):
     if name == "purge_downloads":
-        logger.info(f"🧹 [PVC] Purge du dossier {DOWNLOAD_PATH}...")
+        logger.info(f"[PVC] Purge du dossier {DOWNLOAD_PATH}...")
         shutil.rmtree(DOWNLOAD_PATH)
         os.makedirs(DOWNLOAD_PATH)
-        return [types.TextContent(type="text", text="🧹 Stockage PVC nettoyé.")]
+        return [types.TextContent(type="text", text="Stockage PVC nettoye.")]
 
     session_id = arguments.get("session_id")
     page = await get_or_create_session(session_id)
-    logger.info(f"🛠️  EXECUTE: {name} | SESSION: {session_id}")
+    logger.info(f"[EXECUTE] {name} | SESSION: {session_id}")
     
     try:
         if name == "navigate":
@@ -137,29 +137,23 @@ async def call_tool(name: str, arguments: dict):
             selector = arguments["selector"]
             wait_for = arguments.get("wait_for_selector")
             
-            # Diagnostic pré-clic
             if await page.locator(selector).count() == 0:
-                logger.error(f"❌ [DOM ERROR] Sélecteur '{selector}' introuvable.")
+                logger.error(f"[DOM ERROR] Selecteur '{selector}' introuvable.")
                 return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
             
             await page.click(selector, force=True, timeout=15000)
             
             if wait_for:
-                logger.info(f"⏳ Attente explicite de l'élément : {wait_for}")
+                logger.info(f"[WAIT] Attente explicite de l'element : {wait_for}")
                 await page.wait_for_selector(wait_for, state="attached", timeout=15000)
             else:
-                try:
-                    await page.wait_for_load_state("networkidle", timeout=5000)
-                except:
-                    pass
-                await asyncio.sleep(1) # Délai de sécurité pour le rendu JS
+                try: await page.wait_for_load_state("networkidle", timeout=5000)
+                except: pass
+                await asyncio.sleep(1)
 
             new_dom = await extract_deep_dom(page)
             return [types.TextContent(type="text", text=json.dumps({
-                "action": "click",
-                "result": "OK",
-                "new_url": page.url,
-                "scout_report": new_dom
+                "action": "click", "result": "OK", "new_url": page.url, "scout_report": new_dom
             }, indent=2))]
 
         elif name == "fill_input":
@@ -168,15 +162,25 @@ async def call_tool(name: str, arguments: dict):
             return [types.TextContent(type="text", text=json.dumps({"action": "fill", "result": "OK"}))]
 
         elif name == "download_file":
-            # Sécurité : On attend que le bouton soit cliquable
-            await page.wait_for_selector(arguments["selector"], state="visible", timeout=15000)
+            selector = arguments["selector"]
+            logger.info(f"[DOWNLOAD] Tentative de telechargement force sur : {selector}")
+            
+            # Utilise state=attached car le rect peut etre a 0x0
+            await page.wait_for_selector(selector, state="attached", timeout=15000)
+            
             async with page.expect_download() as download_info:
-                await page.click(arguments["selector"], force=True)
+                # Injection JS pour forcer le clic meme si Playwright considere l'element invisible
+                await page.eval_on_selector(selector, "el => el.click()")
+            
             download = await download_info.value
             file_path = os.path.join(DOWNLOAD_PATH, download.suggested_filename)
             await download.save_as(file_path)
+            
+            logger.info(f"[SUCCESS] Fichier sauvegarde sur PVC : {file_path}")
+            
             with open(file_path, "rb") as f:
                 content = f.read()
+            
             return [types.ImageContent(type="image", data=base64.b64encode(content).decode(), mimeType="application/octet-stream")]
 
         elif name == "screenshot":
@@ -184,15 +188,14 @@ async def call_tool(name: str, arguments: dict):
             return [types.ImageContent(type="image", data=base64.b64encode(img).decode(), mimeType="image/png")]
 
     except Exception as e:
-        logger.error(f"❌ [ERROR] technique: {str(e)}")
+        logger.error(f"[ERROR] Technique: {str(e)}")
         viz = "N/A"
         try:
             viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", arguments.get("selector", ""))
-        except:
-            pass
+        except: pass
         return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
 
-# --- ROUTAGE INFRA (Fix Readiness/Liveness Probes 404) ---
+# --- ROUTAGE INFRA ---
 async def sse_endpoint(request: Request):
     async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (r, w):
         await mcp_server.run(r, w, mcp_server.create_initialization_options())
