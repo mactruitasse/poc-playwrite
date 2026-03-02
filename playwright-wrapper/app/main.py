@@ -7,7 +7,7 @@ import sys
 import shutil
 from contextlib import asynccontextmanager
 
-# --- CONFIGURATION LOGGING ---
+# --- CONFIGURATION LOGGING (Ultra-Verbeuse) ---
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
@@ -25,26 +25,26 @@ try:
     import mcp.types as types
     from playwright.async_api import async_playwright
 except ImportError as e:
-    logger.error(f"💥 Dépendance manquante : {e}")
+    logger.error(f"💥 Dépendance manquante dans le Pod : {e}")
     raise
 
-# --- CONFIGURATION STORAGE ---
+# --- ARCHITECTURE IMMUABLE : CONFIGURATION STORAGE ---
 DOWNLOAD_PATH = os.getenv("DOWNLOAD_PATH", "/app/downloads")
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
+BROWSERLESS_URL = os.getenv("BROWSERLESS_URL", "ws://browserless.n8n-prod.svc.cluster.local:3000")
 
 mcp_server = Server("playwright-tools")
 sessions: dict[str, dict] = {}
 pw_manager = None
-BROWSERLESS_URL = os.getenv("BROWSERLESS_URL", "ws://browserless.n8n-prod.svc.cluster.local:3000")
 sse_transport = SseServerTransport("/messages/")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pw_manager
-    logger.info("🚀 [SYSTEM] Start Playwright Engine...")
+    logger.info("🚀 [SYSTEM] Start Playwright Engine and CDP Connection...")
     pw_manager = await async_playwright().start()
     yield
-    logger.info("🛑 [SYSTEM] Cleaning sessions...")
+    logger.info("🛑 [SYSTEM] Cleaning sessions and stopping engine...")
     for _s_id, data in list(sessions.items()):
         try: await data["browser"].close()
         except: pass
@@ -52,19 +52,29 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
-async def analyze_page_raw(page):
+# --- FONCTION D'ANALYSE PROFONDE DU DOM ---
+async def extract_deep_dom(page):
+    logger.info("🔍 [DOM] Exécution du script d'analyse profonde (Scout Report)...")
     script = """
     () => {
-        const elements = document.querySelectorAll('button, input, a, select, textarea, [role="button"]');
+        const elements = document.querySelectorAll('button, input, a, select, textarea, [role="button"], h1, h2, h3, p, span, div');
         return Array.from(elements).map((el, index) => {
             const rect = el.getBoundingClientRect();
-            return {
-                index: index, tag: el.tagName.toLowerCase(), 
-                id: el.id || null,
-                text: (el.innerText || el.value || '').trim().substring(0, 50),
-                isVisible: rect.width > 0 && rect.height > 0
-            };
-        });
+            const style = window.getComputedStyle(el);
+            // On ne garde que les éléments visibles avec du contenu
+            if (rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && (el.innerText.trim().length > 0 || el.tagName === 'INPUT')) {
+                return {
+                    index: index,
+                    tag: el.tagName.toLowerCase(),
+                    id: el.id || null,
+                    class: el.className || null,
+                    text: (el.innerText || el.value || '').trim().substring(0, 100),
+                    href: el.href || null,
+                    isVisible: true
+                };
+            }
+            return null;
+        }).filter(x => x !== null);
     }
     """
     return await page.evaluate(script)
@@ -74,9 +84,9 @@ async def get_or_create_session(session_id: str):
         data = sessions[session_id]
         if data["browser"].is_connected(): return data["page"]
     
-    logger.info(f"🆕 Session Creation: {session_id}")
+    logger.info(f"🆕 [SESSION] Creation: {session_id}")
     browser = await pw_manager.chromium.connect_over_cdp(BROWSERLESS_URL)
-    context = await browser.new_context(viewport={"width": 1280, "height": 800})
+    context = await browser.new_context(viewport={"width": 1920, "height": 1080})
     page = await context.new_page()
     sessions[session_id] = {"context": context, "page": page, "browser": browser}
     return page
@@ -85,18 +95,19 @@ async def get_or_create_session(session_id: str):
 async def list_tools() -> list[types.Tool]:
     s_id = {"session_id": {"type": "string"}}
     return [
-        types.Tool(name="navigate", description="Navigue vers URL", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
-        types.Tool(name="scout_dom", description="Analyse les sélecteurs", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic forcé", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="navigate", description="Navigue et analyse tout le site (DOM)", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
+        types.Tool(name="scout_dom", description="Analyse profonde des sélecteurs actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="click_element", description="Clic forcé via sélecteur", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Saisie de texte", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
-        types.Tool(name="download_file", description="Téléchargement (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
-        types.Tool(name="screenshot", description="Capture d'écran (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="purge_downloads", description="Vide le stockage PVC", inputSchema={"type":"object","properties":{},"required":[]}),
+        types.Tool(name="download_file", description="Téléchargement direct (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="screenshot", description="Capture d'écran HD (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
+        types.Tool(name="purge_downloads", description="Vide le stockage persistant PVC", inputSchema={"type":"object","properties":{},"required":[]}),
     ]
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict):
     if name == "purge_downloads":
+        logger.info(f"🧹 [PVC] Purge du dossier {DOWNLOAD_PATH}")
         shutil.rmtree(DOWNLOAD_PATH)
         os.makedirs(DOWNLOAD_PATH)
         return [types.TextContent(type="text", text="🧹 Stockage PVC nettoyé.")]
@@ -108,16 +119,21 @@ async def call_tool(name: str, arguments: dict):
     try:
         if name == "navigate":
             await page.goto(arguments["url"], wait_until="networkidle", timeout=60000)
-            return [types.TextContent(type="text", text=json.dumps({"current_url": page.url, "status": "success"}))]
+            dom_report = await extract_deep_dom(page)
+            # On renvoie l'URL et le rapport DOM complet
+            return [types.TextContent(
+                type="text", 
+                text=json.dumps({"url": page.url, "scout_report": dom_report}, indent=2)
+            )]
 
         elif name == "scout_dom":
-            elements = await analyze_page_raw(page)
-            return [types.TextContent(type="text", text=json.dumps({"elements": elements}))]
+            dom_report = await extract_deep_dom(page)
+            return [types.TextContent(type="text", text=json.dumps({"elements": dom_report}, indent=2))]
 
         elif name == "click_element":
             await page.click(arguments["selector"], force=True, timeout=15000)
             await page.wait_for_load_state("networkidle")
-            return [types.TextContent(type="text", text=json.dumps({"action": "click", "selector": arguments["selector"], "result": "OK"}))]
+            return [types.TextContent(type="text", text=json.dumps({"action": "click", "result": "OK"}))]
 
         elif name == "fill_input":
             await page.focus(arguments["selector"])
@@ -130,11 +146,8 @@ async def call_tool(name: str, arguments: dict):
             download = await download_info.value
             file_path = os.path.join(DOWNLOAD_PATH, download.suggested_filename)
             await download.save_as(file_path)
-            
             with open(file_path, "rb") as f:
                 content = f.read()
-            
-            # --- IMPORTANT : UN SEUL BLOB pour forcer l'onglet binaire dans n8n ---
             return [types.BlobContent(
                 type="blob",
                 blob=base64.b64encode(content).decode(),
@@ -150,7 +163,7 @@ async def call_tool(name: str, arguments: dict):
             )]
 
     except Exception as e:
-        logger.error(f"❌ Error in {name}: {str(e)}")
+        logger.error(f"❌ [ERROR] in {name}: {str(e)}")
         return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
 # --- SSE INFRA ---
