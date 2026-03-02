@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 
-# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage métier) ---
+# --- ANALYSE DOM BRUTE (RAW Scout Report - Zéro Filtrage) ---
 async def extract_deep_dom(page):
     logger.info("🔍 [DOM] Exécution du RAW Scout Report (Extraction exhaustive)...")
     script = """
@@ -95,7 +95,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(name="navigate", description="Navigation + RAW Scout DOM", inputSchema={"type":"object","properties":{"url":{"type":"string"},**s_id},"required":["url","session_id"]}),
         types.Tool(name="scout_dom", description="Analyse exhaustive des éléments actuels", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
-        types.Tool(name="click_element", description="Clic + Diagnostic + RAW Scout de la nouvelle page", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
+        types.Tool(name="click_element", description="Clic + Wait + Rapport DOM Post-Clic", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"wait_for_selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="fill_input", description="Saisie de texte (délai humain)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},"value":{"type":"string"},**s_id},"required":["selector","value","session_id"]}),
         types.Tool(name="download_file", description="Téléchargement vers PVC (Output Binaire)", inputSchema={"type":"object","properties":{"selector":{"type":"string"},**s_id},"required":["selector","session_id"]}),
         types.Tool(name="screenshot", description="Capture d'écran HD (Output Binaire)", inputSchema={"type":"object","properties":{**s_id},"required":["session_id"]}),
@@ -125,25 +125,30 @@ async def call_tool(name: str, arguments: dict):
 
         elif name == "click_element":
             selector = arguments["selector"]
+            wait_for = arguments.get("wait_for_selector")
+            
             # Diagnostic pré-clic
             if await page.locator(selector).count() == 0:
                 logger.error(f"❌ [DOM ERROR] Sélecteur '{selector}' introuvable.")
                 return [types.TextContent(type="text", text=json.dumps({"error": "Selector not found", "selector": selector}))]
             
-            try:
-                await page.click(selector, force=True, timeout=15000)
+            await page.click(selector, force=True, timeout=15000)
+            
+            if wait_for:
+                logger.info(f"⏳ Attente explicite de l'élément : {wait_for}")
+                await page.wait_for_selector(wait_for, state="attached", timeout=15000)
+            else:
                 await page.wait_for_load_state("networkidle")
-                # --- AUTO-SCOUT APRES CLIC ---
-                new_dom = await extract_deep_dom(page)
-                return [types.TextContent(type="text", text=json.dumps({
-                    "action": "click",
-                    "result": "OK",
-                    "new_url": page.url,
-                    "scout_report": new_dom
-                }, indent=2))]
-            except Exception as e:
-                viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", selector)
-                return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
+                await asyncio.sleep(1) # Sécurité pour les transitions JS
+
+            # --- OUTPUT AUGMENTÉ : On renvoie le DOM après le clic ---
+            new_dom = await extract_deep_dom(page)
+            return [types.TextContent(type="text", text=json.dumps({
+                "action": "click",
+                "result": "OK",
+                "new_url": page.url,
+                "scout_report": new_dom
+            }, indent=2))]
 
         elif name == "fill_input":
             await page.focus(arguments["selector"])
@@ -151,6 +156,8 @@ async def call_tool(name: str, arguments: dict):
             return [types.TextContent(type="text", text=json.dumps({"action": "fill", "result": "OK"}))]
 
         elif name == "download_file":
+            # Sécurité : On attend que le bouton de téléchargement soit cliquable
+            await page.wait_for_selector(arguments["selector"], state="visible", timeout=15000)
             async with page.expect_download() as download_info:
                 await page.click(arguments["selector"], force=True)
             download = await download_info.value
@@ -166,9 +173,13 @@ async def call_tool(name: str, arguments: dict):
 
     except Exception as e:
         logger.error(f"❌ [ERROR] technique: {str(e)}")
-        return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
+        # Diagnostic Verbeux en cas de Timeout
+        viz = "N/A"
+        try: viz = await page.evaluate(f"(s) => {{ const e = document.querySelector(s); const r = e.getBoundingClientRect(); return {{ w: r.width, h: r.height, display: window.getComputedStyle(e).display }}; }}", arguments.get("selector", ""))
+        except: pass
+        return [types.TextContent(type="text", text=json.dumps({"error": str(e), "diagnostic": viz}))]
 
-# --- ROUTAGE INFRA (Fix Readiness/Liveness Probes 404) ---
+# --- ROUTAGE INFRA ---
 async def sse_endpoint(request: Request):
     async with sse_transport.connect_sse(request.scope, request.receive, request._send) as (r, w):
         await mcp_server.run(r, w, mcp_server.create_initialization_options())
