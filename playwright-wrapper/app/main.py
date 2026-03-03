@@ -23,13 +23,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp-manager")
 
-# Filtre pour supprimer le "ping" des logs (typiquement /health)
-class DropHealthAccessLogs(logging.Filter):
+# --- FILTRES ANTI "PING" / POLL (uvicorn access + SSE starlette) ---
+class DropNoisyHttpLogs(logging.Filter):
+    """
+    Filtre les endpoints très bruyants:
+    - /health, /ping: probes
+    - /sse: SSE keepalive / reconnect
+    - /messages/: transport MCP
+    """
+    NOISY_PATHS = ("/health", "/ping", "/sse", "/messages/", "/messages")
+
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
-        # Uvicorn access log ressemble à: '10.0.0.1:12345 - "GET /health HTTP/1.1" 200'
-        if "GET /health " in msg or "GET /ping " in msg:
+
+        # Cas uvicorn.access: 'IP - "GET /health HTTP/1.1" 200 OK'
+        # Cas sse_starlette.sse: 'chunk: b"...' (à filtrer plus bas avec DropSseChunkLogs)
+        for p in self.NOISY_PATHS:
+            if f'"GET {p} ' in msg or f'"POST {p} ' in msg:
+                return False
+        return True
+
+
+class DropSseChunkLogs(logging.Filter):
+    """
+    Filtre les logs 'chunk: b'...' de sse_starlette.sse (ultra bruyant).
+    """
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if msg.startswith("chunk: b'") or msg.startswith('chunk: b"') or msg.startswith("chunk: "):
             return False
+        # certains logs ressemblent à "Sending message via SSE:" (garde, utile)
         return True
 
 
@@ -37,8 +60,15 @@ class DropHealthAccessLogs(logging.Filter):
 for _name in ("uvicorn", "uvicorn.error", "uvicorn.access", "mcp", "mcp.server", "mcp.server.lowlevel"):
     logging.getLogger(_name).setLevel(getattr(logging, LOG_LEVEL, logging.DEBUG))
 
-# Appliquer le filtre uniquement aux access logs (garde le reste)
-logging.getLogger("uvicorn.access").addFilter(DropHealthAccessLogs())
+# Appliquer les filtres
+logging.getLogger("uvicorn.access").addFilter(DropNoisyHttpLogs())
+
+# sse_starlette est souvent très bavard; on filtre les chunks
+logging.getLogger("sse_starlette.sse").setLevel(getattr(logging, LOG_LEVEL, logging.DEBUG))
+logging.getLogger("sse_starlette.sse").addFilter(DropSseChunkLogs())
+
+# (Optionnel) starlette "général" peut aussi spammer selon config
+logging.getLogger("starlette").setLevel(getattr(logging, LOG_LEVEL, logging.DEBUG))
 
 try:
     import uvicorn
@@ -204,7 +234,6 @@ async def get_or_create_session(session_id: str):
         data = sessions[session_id]
         try:
             if data["browser"].is_connected() and not data["page"].is_closed():
-                # test actif: si ça échoue -> session morte
                 await data["page"].evaluate("() => 1")
                 return data["page"]
         except Exception:
@@ -287,8 +316,8 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="download_pdf_wikipedia",
             description=(
-                "FIX Wikipedia: détecte une action de formulaire (ou fallback) et télécharge via page.request "
-                "(évite downloads 0-octet / timeouts sur CDP)."
+                "NOUVEAU FIX Wikipedia: détecte l'URL réelle du PDF (lien ou form) puis télécharge via page.request. "
+                "Valide content-type / magic bytes %PDF- pour éviter de sauvegarder du HTML."
             ),
             inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]},
         ),
@@ -297,12 +326,7 @@ async def list_tools() -> list[types.Tool]:
             description="Lire un fichier local (path) en base64 par morceaux (chunk).",
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "path": {"type": "string"},
-                    "offset": {"type": "integer"},
-                    "length": {"type": "integer"},
-                    **s_id,
-                },
+                "properties": {"path": {"type": "string"}, "offset": {"type": "integer"}, "length": {"type": "integer"}, **s_id},
                 "required": ["path", "offset", "length", "session_id"],
             },
         ),
@@ -372,22 +396,13 @@ async def call_tool(name: str, arguments: dict):
                         index,
                     )
                     if not ok:
-                        return [
-                            types.TextContent(
-                                type="text",
-                                text=safe_json_text({"error": "idx element not found", "selector": selector}),
-                            )
-                        ]
+                        return [types.TextContent(type="text", text=safe_json_text({"error": "idx element not found", "selector": selector}))]
+
                 else:
                     cnt = await page.locator(selector).count()
                     logger.debug(f"[CLICK] locator count={cnt}")
                     if cnt == 0:
-                        return [
-                            types.TextContent(
-                                type="text",
-                                text=safe_json_text({"error": "Selector not found", "selector": selector}),
-                            )
-                        ]
+                        return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found", "selector": selector}))]
                     await page.locator(selector).first.scroll_into_view_if_needed(timeout=15000)
                     await page.click(selector, force=True, timeout=15000)
 
@@ -471,90 +486,101 @@ async def call_tool(name: str, arguments: dict):
                 return [types.TextContent(type="text", text=safe_json_text(payload))]
 
             elif name == "download_pdf_wikipedia":
-                # FIX Wikipedia (robuste):
-                # - n'utilise pas expect_download
-                # - trouve une action de form via heuristique (string-safe)
-                # - télécharge via page.request.get
-                # - inclut dump des forms si échec
+                # NOUVEAU FIX:
+                # - Identifie l'URL du vrai PDF (lien ou heuristique)
+                # - Télécharge via page.request.get
+                # - Vérifie content-type OU magic bytes %PDF- avant de sauver
                 try:
                     try:
-                        await page.wait_for_selector("#mw-download-form", state="attached", timeout=30000)
-                        logger.debug("[WIKI_PDF] #mw-download-form attached")
-                    except Exception as e:
-                        logger.debug(f"[WIKI_PDF] wait #mw-download-form skipped/failed: {e}")
+                        await page.wait_for_load_state("domcontentloaded", timeout=15000)
+                    except Exception:
+                        pass
 
-                    action_url = await page.evaluate(
+                    candidate = await page.evaluate(
                         """
                         () => {
-                            const forms = Array.from(document.querySelectorAll('form'));
+                            const abs = (u) => {
+                                try { return new URL(u, window.location.href).toString(); }
+                                catch(e) { return null; }
+                            };
 
-                            const normalized = forms.map(f => {
-                                let action = '';
-                                try { action = f.action ? String(f.action) : ''; } catch(e) { action = ''; }
-                                return {
-                                    action,
-                                    id: f.id || null,
-                                    name: f.getAttribute('name') || null
-                                };
-                            }).filter(x => x.action);
+                            // 1) Liens directs de téléchargement
+                            const links = Array.from(document.querySelectorAll('a[href]'))
+                              .map(a => ({
+                                  href: abs(a.getAttribute('href')),
+                                  text: (a.textContent || '').trim().toLowerCase()
+                              }))
+                              .filter(x => x.href);
 
-                            const c1 = normalized.find(x => String(x.action).includes('Special:DownloadAsPdf'));
-                            if (c1) return c1.action;
+                            const linkPdf = links.find(x =>
+                                x.href.toLowerCase().includes('.pdf') ||
+                                x.href.toLowerCase().includes('/pdf') ||
+                                x.text.includes('télécharger') ||
+                                x.text.includes('download')
+                            );
+                            if (linkPdf) return { kind: "link", url: linkPdf.href };
 
-                            const c2 = normalized.find(x => String(x.action).toLowerCase().includes('download'));
-                            if (c2) return c2.action;
+                            // 2) Fallback heuristique: transformer l'URL show-download-screen
+                            const cur = window.location.href;
+                            if (cur.includes('Special:DownloadAsPdf') && cur.includes('action=show-download-screen')) {
+                                // On tente une action "download" (si supportée)
+                                return { kind: "heuristic", url: cur.replace('action=show-download-screen', 'action=download') };
+                            }
 
                             return null;
                         }
                         """
                     )
 
-                    if not action_url:
-                        forms_dump = await page.evaluate(
-                            """
-                            () => Array.from(document.querySelectorAll('form')).map(f => ({
-                                id: f.id || null,
-                                name: f.getAttribute('name') || null,
-                                action: (() => { try { return f.action ? String(f.action) : null; } catch(e) { return null; } })()
-                            }))
-                            """
-                        )
-                        payload = {
-                            "result": "ERROR",
-                            "error": "No suitable download form/action found on page",
-                            "current_url": page.url,
-                            "forms": forms_dump,
-                        }
+                    if not candidate or not candidate.get("url"):
+                        payload = {"result": "ERROR", "error": "No candidate PDF URL found", "current_url": page.url}
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
-                    logger.info(f"[WIKI_PDF] GET {action_url}")
-                    resp = await page.request.get(action_url, timeout=120000)
+                    source_url = candidate["url"]
+                    logger.info(f"[WIKI_PDF] candidate kind={candidate.get('kind')} url={source_url}")
 
-                    logger.debug(f"[WIKI_PDF] HTTP status={resp.status} ok={resp.ok}")
+                    resp = await page.request.get(source_url, timeout=120000)
+
+                    ct = ""
                     try:
                         ct = resp.headers.get("content-type", "")
-                        cd = resp.headers.get("content-disposition", "")
-                        logger.debug(f"[WIKI_PDF] headers content-type={ct} content-disposition={cd}")
                     except Exception:
                         pass
-
-                    if not resp.ok:
-                        payload = {"result": "ERROR", "error": f"HTTP {resp.status}", "source_url": action_url, "current_url": page.url}
-                        return [types.TextContent(type="text", text=safe_json_text(payload))]
 
                     body = await resp.body()
                     if not body or len(body) == 0:
-                        payload = {"result": "ERROR", "error": "Empty body", "source_url": action_url, "current_url": page.url}
+                        payload = {"result": "ERROR", "error": "Empty body", "source_url": source_url, "current_url": page.url}
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
-                    cd = ""
+                    # Validation PDF
+                    is_pdf = False
+                    if ct.lower().startswith("application/pdf"):
+                        is_pdf = True
+                    if body[:5] == b"%PDF-":
+                        is_pdf = True
+
+                    if not is_pdf:
+                        snippet = body[:200].decode("utf-8", errors="replace")
+                        payload = {
+                            "result": "ERROR",
+                            "error": "Response is not a PDF",
+                            "source_url": source_url,
+                            "current_url": page.url,
+                            "content_type": ct,
+                            "size_bytes": len(body),
+                            "body_snippet": snippet,
+                        }
+                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+
+                    # Nom de fichier
+                    filename = "wikipedia.pdf"
                     try:
                         cd = resp.headers.get("content-disposition", "")
+                        fn = parse_filename_from_content_disposition(cd)
+                        if fn:
+                            filename = os.path.basename(fn)
                     except Exception:
                         pass
-
-                    filename = parse_filename_from_content_disposition(cd) or "wikipedia.pdf"
-                    filename = os.path.basename(filename)
 
                     file_path = os.path.join(DOWNLOAD_PATH, filename)
                     with open(file_path, "wb") as f:
@@ -574,7 +600,8 @@ async def call_tool(name: str, arguments: dict):
                         "sha256": sha256,
                         "chunk_recommended_bytes": DEFAULT_CHUNK_SIZE,
                         "current_url": page.url,
-                        "source_url": action_url,
+                        "source_url": source_url,
+                        "content_type": ct,
                     }
                     return [types.TextContent(type="text", text=safe_json_text(payload))]
 
@@ -636,7 +663,6 @@ async def call_tool(name: str, arguments: dict):
             logger.error(f"[ERROR] Technique: {str(e)}")
             return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": str(e)}))]
 
-    # Théoriquement inatteignable
     return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": "Unexpected retry fallthrough"}))]
 
 
@@ -648,7 +674,6 @@ async def sse_endpoint(request: Request):
 
 @app.get("/health")
 async def health():
-    # Réponse simple; l'access log /health est filtré (DropHealthAccessLogs)
     return {"status": "ok", "sessions": len(sessions), "download_path": DOWNLOAD_PATH}
 
 
@@ -660,6 +685,6 @@ if __name__ == "__main__":
         app,
         host="0.0.0.0",
         port=8080,
-        access_log=True,           # on garde, mais /health est filtré
+        access_log=True,
         log_level=UVICORN_LOG_LEVEL,
     )
