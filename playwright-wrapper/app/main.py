@@ -7,6 +7,7 @@ import sys
 import shutil
 import hashlib
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse, parse_qs, quote
 
 # --- LOGGING PLUS VERBEUX (contrôlé par ENV) ---
 # LOG_LEVEL: INFO|DEBUG (par défaut DEBUG)
@@ -190,6 +191,30 @@ async def close_and_forget_session(session_id: str):
         pass
 
 
+def parse_query_param_from_url(url: str, key: str) -> str | None:
+    try:
+        q = parse_qs(urlparse(url).query)
+        v = q.get(key)
+        if not v:
+            return None
+        # parse_qs renvoie une liste
+        return v[0]
+    except Exception:
+        return None
+
+
+def wiki_pdf_rest_url(current_url: str, page_title: str) -> str:
+    """
+    Construit: https://<host>/api/rest_v1/page/pdf/<TITLE>
+    - page_title doit être le "Title" de MediaWiki (underscores ok)
+    - on URL-encode au niveau du chemin
+    """
+    p = urlparse(current_url)
+    origin = f"{p.scheme}://{p.netloc}"
+    # quote encode le title pour un path segment
+    return f"{origin}/api/rest_v1/page/pdf/{quote(page_title, safe='')}"
+
+
 # --- ANALYSE DOM BRUTE (RAW Scout Report) ---
 async def extract_deep_dom(page):
     logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive)...")
@@ -312,8 +337,8 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="download_pdf_wikipedia",
             description=(
-                "FIX Wikipedia: trouve l'URL du vrai PDF en scorant les liens (ignore QrCode/show-download-screen), "
-                "télécharge via page.request.get, valide %PDF-."
+                "FIX Wikipedia (robuste): construit l'URL REST /api/rest_v1/page/pdf/<title> à partir du param 'page=' "
+                "(ou fallback formulaire), télécharge via page.request.get, valide %PDF-."
             ),
             inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]},
         ),
@@ -482,98 +507,50 @@ async def call_tool(name: str, arguments: dict):
                 return [types.TextContent(type="text", text=safe_json_text(payload))]
 
             elif name == "download_pdf_wikipedia":
-                # FIX Wikipedia: score des liens + blacklist QrCode/show-download-screen
-                # Télécharge via page.request.get, valide %PDF-
+                # FIX Wikipedia (robuste):
+                # - construit /api/rest_v1/page/pdf/<title> à partir de ?page=...
+                # - fallback: input[name=page] dans le DOM
+                # - télécharge via page.request.get avec Accept: application/pdf
+                # - valide %PDF- avant de sauver
                 try:
                     try:
                         await page.wait_for_load_state("domcontentloaded", timeout=15000)
                     except Exception:
                         pass
 
-                    candidate = await page.evaluate(
-                        """
-                        () => {
-                            const abs = (u) => {
-                                try { return new URL(u, window.location.href).toString(); }
-                                catch(e) { return null; }
-                            };
+                    current = page.url
+                    page_title = parse_query_param_from_url(current, "page")
 
-                            const bad = (u) => {
-                                const x = (u || '').toLowerCase();
-                                return (
-                                    !x ||
-                                    x.startsWith('javascript:') ||
-                                    x.startsWith('mailto:') ||
-                                    x.includes('special:qrcode') ||
-                                    x.includes('action=show-download-screen')
-                                );
-                            };
+                    if not page_title:
+                        # Fallback: tenter de lire dans le DOM (si param absent)
+                        try:
+                            page_title = await page.evaluate(
+                                """
+                                () => {
+                                    const el = document.querySelector('input[name="page"]');
+                                    return el ? (el.value || null) : null;
+                                }
+                                """
+                            )
+                        except Exception:
+                            page_title = None
 
-                            const score = (u, text) => {
-                                const x = (u || '').toLowerCase();
-                                const t = (text || '').toLowerCase();
-                                let s = 0;
-
-                                // très bons signaux PDF
-                                if (x.includes('/api/rest_v1/')) s += 100;
-                                if (x.includes('/pdf/')) s += 90;
-                                if (x.includes('format=pdf')) s += 80;
-                                if (x.endsWith('.pdf') || x.includes('.pdf?')) s += 80;
-
-                                // bons signaux
-                                if (t.includes('télécharger') || t.includes('download')) s += 20;
-                                if (x.includes('download')) s += 10;
-
-                                // pénalités
-                                if (x.includes('special:downloadaspdf')) s -= 10;
-                                if (x.includes('qrcode')) s -= 1000;
-
-                                return s;
-                            };
-
-                            const links = Array.from(document.querySelectorAll('a[href]'))
-                              .map(a => ({
-                                  href: abs(a.getAttribute('href')),
-                                  text: (a.textContent || '').trim()
-                              }))
-                              .filter(x => x.href && !bad(x.href));
-
-                            if (!links.length) return null;
-
-                            let best = null;
-                            for (const l of links) {
-                                const s = score(l.href, l.text);
-                                if (!best || s > best.score) best = { kind: "link", url: l.href, score: s, text: l.text };
-                            }
-
-                            // si score trop faible: renvoyer un debug
-                            if (!best || best.score < 30) {
-                                return {
-                                    kind: "debug",
-                                    url: null,
-                                    best_guess: best,
-                                    all: links.slice(0, 80)
-                                };
-                            }
-
-                            return best;
-                        }
-                        """
-                    )
-
-                    if not candidate or not candidate.get("url"):
-                        payload = {
-                            "result": "ERROR",
-                            "error": "No reliable PDF link found",
-                            "current_url": page.url,
-                            "candidate_debug": candidate,
-                        }
+                    if not page_title:
+                        payload = {"result": "ERROR", "error": "Cannot determine wikipedia page title (param 'page' missing)", "current_url": current}
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
-                    source_url = candidate["url"]
-                    logger.info(f"[WIKI_PDF] candidate score={candidate.get('score')} url={source_url}")
+                    # Certains titres peuvent contenir des espaces; MediaWiki accepte underscores ou espaces,
+                    # mais on normalise en underscores pour être safe.
+                    page_title_norm = str(page_title).replace(" ", "_")
 
-                    resp = await page.request.get(source_url, timeout=120000)
+                    source_url = wiki_pdf_rest_url(current, page_title_norm)
+                    logger.info(f"[WIKI_PDF] REST url={source_url} (page={page_title_norm})")
+
+                    resp = await page.request.get(
+                        source_url,
+                        timeout=120000,
+                        headers={"accept": "application/pdf"},
+                    )
 
                     ct = ""
                     try:
@@ -583,9 +560,10 @@ async def call_tool(name: str, arguments: dict):
 
                     body = await resp.body()
                     if not body or len(body) == 0:
-                        payload = {"result": "ERROR", "error": "Empty body", "source_url": source_url, "current_url": page.url}
+                        payload = {"result": "ERROR", "error": "Empty body", "source_url": source_url, "current_url": current, "content_type": ct}
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
+                    # Validation PDF (content-type OU magic bytes)
                     is_pdf = False
                     if ct.lower().startswith("application/pdf"):
                         is_pdf = True
@@ -598,15 +576,15 @@ async def call_tool(name: str, arguments: dict):
                             "result": "ERROR",
                             "error": "Response is not a PDF",
                             "source_url": source_url,
-                            "current_url": page.url,
+                            "current_url": current,
                             "content_type": ct,
                             "size_bytes": len(body),
-                            "candidate": candidate,
                             "body_snippet": snippet,
+                            "page_title": page_title_norm,
                         }
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
-                    filename = "wikipedia.pdf"
+                    filename = f"{page_title_norm}.pdf"
                     try:
                         cd = resp.headers.get("content-disposition", "")
                         fn = parse_filename_from_content_disposition(cd)
@@ -632,10 +610,10 @@ async def call_tool(name: str, arguments: dict):
                         "size_bytes": size_bytes,
                         "sha256": sha256,
                         "chunk_recommended_bytes": DEFAULT_CHUNK_SIZE,
-                        "current_url": page.url,
+                        "current_url": current,
                         "source_url": source_url,
                         "content_type": ct,
-                        "candidate": candidate,
+                        "page_title": page_title_norm,
                     }
                     return [types.TextContent(type="text", text=safe_json_text(payload))]
 
