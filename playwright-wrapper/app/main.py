@@ -6,6 +6,7 @@ import os
 import sys
 import shutil
 import hashlib
+import time
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse, parse_qs, quote
 
@@ -78,6 +79,7 @@ except ImportError as e:
     logger.error(f"[FATAL] Dependance manquante dans le Pod : {e}")
     raise
 
+
 # --- ARCHITECTURE IMMUABLE (KIND/PVC/CDP) ---
 DOWNLOAD_PATH = os.getenv("DOWNLOAD_PATH", "/app/downloads")
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
@@ -88,9 +90,16 @@ BROWSERLESS_URL = os.getenv(
     "ws://browserless.n8n-prod.svc.cluster.local:3000",
 )
 
+# URL du pod (utile pour debug / multi-pods / sticky sessions)
+# Exemple en k8s: http://playwright-wrapper.n8n-prod.svc.cluster.local:8080
+POD_URL = os.getenv("POD_URL", "http://localhost:8080")
+
 # Limites de chunk (base64 gonfle ~33%).
 # 512KB brut -> ~682KB base64, généralement safe.
 DEFAULT_CHUNK_SIZE = int(os.getenv("CHUNK_SIZE_BYTES", "524288"))
+
+# Scout DOM "full": longueur max de text récupéré par élément (innerText)
+DOM_TEXT_MAX = int(os.getenv("DOM_TEXT_MAX", "400"))
 
 mcp_server = Server("playwright-tools")
 sessions: dict[str, dict] = {}
@@ -129,6 +138,8 @@ app = FastAPI(title="n8n-Persistent-Scout", lifespan=lifespan)
 # --- UTILITAIRES ---
 def guess_mime_type(filename: str) -> str:
     fn = (filename or "").lower()
+    if fn.endswith(".json"):
+        return "application/json"
     if fn.endswith(".pdf"):
         return "application/pdf"
     if fn.endswith(".png"):
@@ -197,7 +208,6 @@ def parse_query_param_from_url(url: str, key: str) -> str | None:
         v = q.get(key)
         if not v:
             return None
-        # parse_qs renvoie une liste
         return v[0]
     except Exception:
         return None
@@ -211,15 +221,13 @@ def wiki_pdf_rest_url(current_url: str, page_title: str) -> str:
     """
     p = urlparse(current_url)
     origin = f"{p.scheme}://{p.netloc}"
-    # quote encode le title pour un path segment
     return f"{origin}/api/rest_v1/page/pdf/{quote(page_title, safe='')}"
 
 
 async def wait_for_selector_soft(page, selector: str, timeout_ms: int = 15000) -> bool:
     """
     Attente robuste pour les sites hydratés (Vector/Wikipedia, SPA, etc.)
-    - Renvoie True si le sélecteur apparaît (attached), False si timeout.
-    - N'est jamais appelée pour selector 'idx:N'.
+    - True si le sélecteur apparaît (attached), False si timeout.
     """
     try:
         await page.wait_for_selector(selector, state="attached", timeout=timeout_ms)
@@ -228,9 +236,34 @@ async def wait_for_selector_soft(page, selector: str, timeout_ms: int = 15000) -
         return False
 
 
-# --- ANALYSE DOM BRUTE (RAW Scout Report) ---
+def enrich_payload(payload: dict, session_id: str | None, page=None) -> dict:
+    """
+    Ajoute systématiquement:
+    - session_id (celui donné par n8n)
+    - pod_url (env POD_URL)
+    - page_url (si disponible)
+    """
+    enriched = dict(payload)
+    enriched["session_id"] = session_id
+    enriched["pod_url"] = POD_URL
+    if page is not None:
+        try:
+            enriched["page_url"] = page.url
+        except Exception:
+            enriched["page_url"] = None
+    return enriched
+
+
+def mcp_text(payload: dict, session_id: str | None, page=None):
+    return [types.TextContent(type="text", text=safe_json_text(enrich_payload(payload, session_id, page)))]
+
+
+# --- ANALYSE DOM BRUTE ---
 async def extract_deep_dom(page):
-    logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive)...")
+    """
+    Version "light" (comme avant) : utile pour debug rapide.
+    """
+    logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive - light)...")
     script = """
     () => {
         const elements = document.querySelectorAll('*');
@@ -252,6 +285,58 @@ async def extract_deep_dom(page):
     }
     """
     return await page.evaluate(script)
+
+
+async def extract_deep_dom_full(page, text_max_len: int):
+    """
+    Version "full" : plus d'attributs utiles + texte plus long.
+    (On écrit dans un fichier en Option C, pour éviter les limites de transport SSE/MCP.)
+    """
+    logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive - FULL)...")
+    script = """
+    (maxLen) => {
+        const elements = document.querySelectorAll('*');
+        return Array.from(elements).map((el, index) => {
+            const rect = el.getBoundingClientRect();
+
+            // Certains attributs peuvent throw selon context; on protège un minimum
+            let href = null;
+            try { href = el.href || null; } catch(e) { href = null; }
+
+            let value = null;
+            try {
+                // value uniquement sur inputs/textarea/select (sinon undefined)
+                value = (el.value !== undefined) ? el.value : null;
+            } catch(e) {
+                value = null;
+            }
+
+            let required = null;
+            try { required = (el.required === true); } catch(e) { required = null; }
+
+            return {
+                index: index,
+                tag: el.tagName.toLowerCase(),
+                id: el.id || null,
+                name: el.getAttribute('name'),
+                type: el.getAttribute('type'),
+                role: el.getAttribute('role'),
+                title: el.getAttribute('title'),
+                placeholder: el.getAttribute('placeholder'),
+                value: value,
+                required: required,
+                class: el.className || null,
+                text: (el.innerText || '').trim().substring(0, maxLen),
+                href: href,
+                ariaExpanded: el.getAttribute('aria-expanded'),
+                ariaLabel: el.getAttribute('aria-label'),
+                isVisible: rect.width > 0 && rect.height > 0,
+                rect: { w: rect.width, h: rect.height, t: rect.top, l: rect.left }
+            };
+        }).filter(el => !['script', 'style', 'meta', 'link', 'noscript'].includes(el.tag));
+    }
+    """
+    return await page.evaluate(script, int(text_max_len))
 
 
 def attach_verbose_playwright_listeners(page):
@@ -305,7 +390,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="navigate",
-            description="Navigation + RAW Scout DOM",
+            description="Navigation + RAW Scout DOM (light) inline",
             inputSchema={
                 "type": "object",
                 "properties": {"url": {"type": "string"}, **s_id},
@@ -314,8 +399,20 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="scout_dom",
-            description="Analyse exhaustive des elements actuels",
+            description="Analyse exhaustive des elements actuels (light) inline",
             inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]},
+        ),
+        types.Tool(
+            name="scout_dom_full_to_file",
+            description=(
+                "OPTION C (recommandé): Scout DOM FULL -> écrit un JSON dans /app/downloads et renvoie meta + path + sha256. "
+                "Utiliser read_file_chunk pour récupérer le fichier en base64 par morceaux."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {"text_max_len": {"type": "integer", "description": "Longueur max innerText par élément (défaut env DOM_TEXT_MAX)"}, **s_id},
+                "required": ["session_id"],
+            },
         ),
         types.Tool(
             name="click_element",
@@ -328,7 +425,7 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="fill_input",
-            description="Saisie de texte",
+            description="Saisie de texte (robuste via locator.fill)",
             inputSchema={
                 "type": "object",
                 "properties": {"selector": {"type": "string"}, "value": {"type": "string"}, **s_id},
@@ -399,17 +496,54 @@ async def call_tool(name: str, arguments: dict):
                 await page.goto(url, wait_until="networkidle", timeout=60000)
                 logger.debug(f"[NAV] landed {page.url}")
 
-                # Petit délai anti-hydration (Vector/Wikipedia, SPA, etc.)
+                # Petit délai anti-hydration
                 await asyncio.sleep(0.4)
 
                 dom = await extract_deep_dom(page)
                 payload = {"url": page.url, "scout_report": dom}
-                return [types.TextContent(type="text", text=safe_json_text(payload))]
+                return mcp_text(payload, session_id, page)
 
             elif name == "scout_dom":
                 dom = await extract_deep_dom(page)
                 payload = {"elements": dom}
-                return [types.TextContent(type="text", text=safe_json_text(payload))]
+                return mcp_text(payload, session_id, page)
+
+            elif name == "scout_dom_full_to_file":
+                text_max_len = int(arguments.get("text_max_len") or DOM_TEXT_MAX)
+
+                dom = await extract_deep_dom_full(page, text_max_len=text_max_len)
+
+                # Écriture fichier (Option C)
+                ts = int(time.time())
+                filename = f"scout_dom_full_{session_id}_{ts}.json"
+                file_path = os.path.join(DOWNLOAD_PATH, filename)
+
+                # JSON compact (moins gros que indent=2)
+                payload_file = {
+                    "generated_at_unix": ts,
+                    "page_url": page.url,
+                    "text_max_len": text_max_len,
+                    "elements": dom,
+                }
+
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(payload_file, f, ensure_ascii=False, separators=(",", ":"))
+
+                size_bytes = os.path.getsize(file_path)
+                sha256 = file_sha256(file_path)
+
+                logger.info(f"[DOM_FULL] saved={file_path} size={size_bytes} sha256={sha256}")
+
+                payload = {
+                    "result": "OK",
+                    "filename": filename,
+                    "path": file_path,
+                    "mimeType": "application/json",
+                    "size_bytes": size_bytes,
+                    "sha256": sha256,
+                    "chunk_recommended_bytes": DEFAULT_CHUNK_SIZE,
+                }
+                return mcp_text(payload, session_id, page)
 
             elif name == "click_element":
                 selector = arguments["selector"]
@@ -434,18 +568,25 @@ async def call_tool(name: str, arguments: dict):
                         index,
                     )
                     if not ok:
-                        return [types.TextContent(type="text", text=safe_json_text({"error": "idx element not found", "selector": selector}))]
+                        return mcp_text({"result": "ERROR", "error": "idx element not found", "selector": selector}, session_id, page)
 
                 else:
-                    # ✅ FIX: attendre que le sélecteur existe (sites hydratés / rendu différé)
                     ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
                     if not ok:
-                        return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url}))]
+                        return mcp_text(
+                            {"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url},
+                            session_id,
+                            page,
+                        )
 
                     cnt = await page.locator(selector).count()
                     logger.debug(f"[CLICK] locator count={cnt}")
                     if cnt == 0:
-                        return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found", "selector": selector, "current_url": page.url}))]
+                        return mcp_text(
+                            {"result": "ERROR", "error": "Selector not found", "selector": selector, "current_url": page.url},
+                            session_id,
+                            page,
+                        )
 
                     await page.locator(selector).first.scroll_into_view_if_needed(timeout=15000)
                     await page.click(selector, force=True, timeout=15000)
@@ -460,25 +601,28 @@ async def call_tool(name: str, arguments: dict):
                         pass
                     await asyncio.sleep(0.6)
 
-                logger.debug(f"[CLICK] new_url={page.url}")
                 new_dom = await extract_deep_dom(page)
                 payload = {"action": "click", "result": "OK", "new_url": page.url, "scout_report": new_dom}
-                return [types.TextContent(type="text", text=safe_json_text(payload))]
+                return mcp_text(payload, session_id, page)
 
             elif name == "fill_input":
                 selector = arguments["selector"]
                 value = arguments["value"]
                 logger.info(f"[FILL] selector={selector} len(value)={len(value)}")
 
-                if not selector.startswith("idx:"):
-                    ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
-                    if not ok:
-                        return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url}))]
+                ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
+                if not ok:
+                    return mcp_text(
+                        {"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url},
+                        session_id,
+                        page,
+                    )
 
-                await page.focus(selector)
-                await page.type(selector, value, delay=30)
+                # ✅ fill() est beaucoup plus fiable que focus()+type()
+                await page.locator(selector).fill(value)
+
                 payload = {"action": "fill", "result": "OK"}
-                return [types.TextContent(type="text", text=safe_json_text(payload))]
+                return mcp_text(payload, session_id, page)
 
             elif name == "download_file":
                 selector = arguments["selector"]
@@ -501,17 +645,22 @@ async def call_tool(name: str, arguments: dict):
                             index,
                         )
                 else:
-                    # ✅ FIX: attendre que le sélecteur existe avant count/click
                     ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
                     if not ok:
-                        payload = {"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url}
-                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+                        return mcp_text(
+                            {"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url},
+                            session_id,
+                            page,
+                        )
 
                     cnt = await page.locator(selector).count()
                     logger.debug(f"[DOWNLOAD] locator count={cnt}")
                     if cnt == 0:
-                        payload = {"result": "ERROR", "error": "Selector not found", "selector": selector, "current_url": page.url}
-                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+                        return mcp_text(
+                            {"result": "ERROR", "error": "Selector not found", "selector": selector, "current_url": page.url},
+                            session_id,
+                            page,
+                        )
 
                     await page.locator(selector).first.scroll_into_view_if_needed(timeout=15000)
                     async with page.expect_download(timeout=60000) as download_info:
@@ -539,14 +688,9 @@ async def call_tool(name: str, arguments: dict):
                     "chunk_recommended_bytes": DEFAULT_CHUNK_SIZE,
                     "current_url": page.url,
                 }
-                return [types.TextContent(type="text", text=safe_json_text(payload))]
+                return mcp_text(payload, session_id, page)
 
             elif name == "download_pdf_wikipedia":
-                # FIX Wikipedia (robuste):
-                # - construit /api/rest_v1/page/pdf/<title> à partir de ?page=...
-                # - fallback: input[name=page] dans le DOM
-                # - télécharge via page.request.get avec Accept: application/pdf
-                # - valide %PDF- avant de sauver
                 try:
                     try:
                         await page.wait_for_load_state("domcontentloaded", timeout=15000)
@@ -557,7 +701,6 @@ async def call_tool(name: str, arguments: dict):
                     page_title = parse_query_param_from_url(current, "page")
 
                     if not page_title:
-                        # Fallback: tenter de lire dans le DOM (si param absent)
                         try:
                             page_title = await page.evaluate(
                                 """
@@ -571,11 +714,12 @@ async def call_tool(name: str, arguments: dict):
                             page_title = None
 
                     if not page_title:
-                        payload = {"result": "ERROR", "error": "Cannot determine wikipedia page title (param 'page' missing)", "current_url": current}
-                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+                        return mcp_text(
+                            {"result": "ERROR", "error": "Cannot determine wikipedia page title (param 'page' missing)", "current_url": current},
+                            session_id,
+                            page,
+                        )
 
-                    # Certains titres peuvent contenir des espaces; MediaWiki accepte underscores ou espaces,
-                    # mais on normalise en underscores pour être safe.
                     page_title_norm = str(page_title).replace(" ", "_")
 
                     source_url = wiki_pdf_rest_url(current, page_title_norm)
@@ -594,11 +738,13 @@ async def call_tool(name: str, arguments: dict):
                         pass
 
                     body = await resp.body()
-                    if not body or len(body) == 0:
-                        payload = {"result": "ERROR", "error": "Empty body", "source_url": source_url, "current_url": current, "content_type": ct}
-                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+                    if not body:
+                        return mcp_text(
+                            {"result": "ERROR", "error": "Empty body", "source_url": source_url, "current_url": current, "content_type": ct},
+                            session_id,
+                            page,
+                        )
 
-                    # Validation PDF (content-type OU magic bytes)
                     is_pdf = False
                     if ct.lower().startswith("application/pdf"):
                         is_pdf = True
@@ -607,17 +753,20 @@ async def call_tool(name: str, arguments: dict):
 
                     if not is_pdf:
                         snippet = body[:400].decode("utf-8", errors="replace")
-                        payload = {
-                            "result": "ERROR",
-                            "error": "Response is not a PDF",
-                            "source_url": source_url,
-                            "current_url": current,
-                            "content_type": ct,
-                            "size_bytes": len(body),
-                            "body_snippet": snippet,
-                            "page_title": page_title_norm,
-                        }
-                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+                        return mcp_text(
+                            {
+                                "result": "ERROR",
+                                "error": "Response is not a PDF",
+                                "source_url": source_url,
+                                "current_url": current,
+                                "content_type": ct,
+                                "size_bytes": len(body),
+                                "body_snippet": snippet,
+                                "page_title": page_title_norm,
+                            },
+                            session_id,
+                            page,
+                        )
 
                     filename = f"{page_title_norm}.pdf"
                     try:
@@ -650,12 +799,11 @@ async def call_tool(name: str, arguments: dict):
                         "content_type": ct,
                         "page_title": page_title_norm,
                     }
-                    return [types.TextContent(type="text", text=safe_json_text(payload))]
+                    return mcp_text(payload, session_id, page)
 
                 except Exception as e:
                     logger.error(f"[ERROR] download_pdf_wikipedia: {str(e)}")
-                    payload = {"result": "ERROR", "error": str(e), "current_url": page.url}
-                    return [types.TextContent(type="text", text=safe_json_text(payload))]
+                    return mcp_text({"result": "ERROR", "error": str(e), "current_url": page.url}, session_id, page)
 
             elif name == "read_file_chunk":
                 path = arguments["path"]
@@ -667,17 +815,18 @@ async def call_tool(name: str, arguments: dict):
                 logger.debug(f"[READ_CHUNK] path={abs_path} offset={offset} length={length}")
 
                 if not abs_path.startswith(abs_dl + os.sep):
-                    payload = {"result": "ERROR", "error": "Forbidden path (must be inside DOWNLOAD_PATH)", "path": abs_path}
-                    return [types.TextContent(type="text", text=safe_json_text(payload))]
+                    return mcp_text({"result": "ERROR", "error": "Forbidden path (must be inside DOWNLOAD_PATH)", "path": abs_path}, session_id, page)
 
                 if not os.path.exists(abs_path):
-                    payload = {"result": "ERROR", "error": "File not found", "path": abs_path}
-                    return [types.TextContent(type="text", text=safe_json_text(payload))]
+                    return mcp_text({"result": "ERROR", "error": "File not found", "path": abs_path}, session_id, page)
 
                 file_size = os.path.getsize(abs_path)
                 if offset < 0 or length <= 0 or offset > file_size:
-                    payload = {"result": "ERROR", "error": "Invalid offset/length", "path": abs_path, "file_size": file_size, "offset": offset, "length": length}
-                    return [types.TextContent(type="text", text=safe_json_text(payload))]
+                    return mcp_text(
+                        {"result": "ERROR", "error": "Invalid offset/length", "path": abs_path, "file_size": file_size, "offset": offset, "length": length},
+                        session_id,
+                        page,
+                    )
 
                 with open(abs_path, "rb") as f:
                     f.seek(offset)
@@ -692,14 +841,16 @@ async def call_tool(name: str, arguments: dict):
                     "data_base64": base64.b64encode(data).decode("utf-8"),
                     "eof": (offset + len(data)) >= file_size,
                 }
-                return [types.TextContent(type="text", text=safe_json_text(payload))]
+                return mcp_text(payload, session_id, page)
 
             elif name == "screenshot":
                 img = await page.screenshot(type="png", full_page=False)
+                # ImageContent ne supporte pas enrich_payload proprement (c'est binaire).
+                # Si tu veux pod_url/session_id pour screenshot aussi, fais un outil séparé qui renvoie du JSON + un fichier.
                 return [types.ImageContent(type="image", data=base64.b64encode(img).decode(), mimeType="image/png")]
 
             else:
-                return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": f"Unknown tool: {name}"}))]
+                return mcp_text({"result": "ERROR", "error": f"Unknown tool: {name}"}, session_id, page)
 
         except Exception as e:
             if attempt == 1 and is_target_closed_error(e):
@@ -708,9 +859,9 @@ async def call_tool(name: str, arguments: dict):
                 continue
 
             logger.error(f"[ERROR] Technique: {str(e)}")
-            return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": str(e)}))]
+            return mcp_text({"result": "ERROR", "error": str(e)}, session_id, page)
 
-    return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": "Unexpected retry fallthrough"}))]
+    return mcp_text({"result": "ERROR", "error": "Unexpected retry fallthrough"}, session_id, page)
 
 
 # --- ROUTAGE INFRA ---
@@ -721,7 +872,7 @@ async def sse_endpoint(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "sessions": len(sessions), "download_path": DOWNLOAD_PATH}
+    return {"status": "ok", "sessions": len(sessions), "download_path": DOWNLOAD_PATH, "pod_url": POD_URL}
 
 
 app.add_route("/sse", sse_endpoint, methods=["GET"])
