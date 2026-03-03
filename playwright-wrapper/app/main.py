@@ -215,6 +215,19 @@ def wiki_pdf_rest_url(current_url: str, page_title: str) -> str:
     return f"{origin}/api/rest_v1/page/pdf/{quote(page_title, safe='')}"
 
 
+async def wait_for_selector_soft(page, selector: str, timeout_ms: int = 15000) -> bool:
+    """
+    Attente robuste pour les sites hydratés (Vector/Wikipedia, SPA, etc.)
+    - Renvoie True si le sélecteur apparaît (attached), False si timeout.
+    - N'est jamais appelée pour selector 'idx:N'.
+    """
+    try:
+        await page.wait_for_selector(selector, state="attached", timeout=timeout_ms)
+        return True
+    except Exception:
+        return False
+
+
 # --- ANALYSE DOM BRUTE (RAW Scout Report) ---
 async def extract_deep_dom(page):
     logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive)...")
@@ -385,6 +398,10 @@ async def call_tool(name: str, arguments: dict):
                 logger.info(f"[NAV] goto {url}")
                 await page.goto(url, wait_until="networkidle", timeout=60000)
                 logger.debug(f"[NAV] landed {page.url}")
+
+                # Petit délai anti-hydration (Vector/Wikipedia, SPA, etc.)
+                await asyncio.sleep(0.4)
+
                 dom = await extract_deep_dom(page)
                 payload = {"url": page.url, "scout_report": dom}
                 return [types.TextContent(type="text", text=safe_json_text(payload))]
@@ -420,10 +437,16 @@ async def call_tool(name: str, arguments: dict):
                         return [types.TextContent(type="text", text=safe_json_text({"error": "idx element not found", "selector": selector}))]
 
                 else:
+                    # ✅ FIX: attendre que le sélecteur existe (sites hydratés / rendu différé)
+                    ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
+                    if not ok:
+                        return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url}))]
+
                     cnt = await page.locator(selector).count()
                     logger.debug(f"[CLICK] locator count={cnt}")
                     if cnt == 0:
-                        return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found", "selector": selector}))]
+                        return [types.TextContent(type="text", text=safe_json_text({"error": "Selector not found", "selector": selector, "current_url": page.url}))]
+
                     await page.locator(selector).first.scroll_into_view_if_needed(timeout=15000)
                     await page.click(selector, force=True, timeout=15000)
 
@@ -446,6 +469,12 @@ async def call_tool(name: str, arguments: dict):
                 selector = arguments["selector"]
                 value = arguments["value"]
                 logger.info(f"[FILL] selector={selector} len(value)={len(value)}")
+
+                if not selector.startswith("idx:"):
+                    ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
+                    if not ok:
+                        return [types.TextContent(type="text", text=safe_json_text({"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url}))]
+
                 await page.focus(selector)
                 await page.type(selector, value, delay=30)
                 payload = {"action": "fill", "result": "OK"}
@@ -472,6 +501,12 @@ async def call_tool(name: str, arguments: dict):
                             index,
                         )
                 else:
+                    # ✅ FIX: attendre que le sélecteur existe avant count/click
+                    ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
+                    if not ok:
+                        payload = {"result": "ERROR", "error": "Selector not found (timeout waiting attached)", "selector": selector, "current_url": page.url}
+                        return [types.TextContent(type="text", text=safe_json_text(payload))]
+
                     cnt = await page.locator(selector).count()
                     logger.debug(f"[DOWNLOAD] locator count={cnt}")
                     if cnt == 0:
