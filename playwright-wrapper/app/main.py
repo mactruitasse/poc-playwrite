@@ -35,9 +35,6 @@ class DropNoisyHttpLogs(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
-
-        # Cas uvicorn.access: 'IP - "GET /health HTTP/1.1" 200 OK'
-        # Cas sse_starlette.sse: 'chunk: b"...' (à filtrer plus bas avec DropSseChunkLogs)
         for p in self.NOISY_PATHS:
             if f'"GET {p} ' in msg or f'"POST {p} ' in msg:
                 return False
@@ -52,7 +49,6 @@ class DropSseChunkLogs(logging.Filter):
         msg = record.getMessage()
         if msg.startswith("chunk: b'") or msg.startswith('chunk: b"') or msg.startswith("chunk: "):
             return False
-        # certains logs ressemblent à "Sending message via SSE:" (garde, utile)
         return True
 
 
@@ -316,8 +312,8 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="download_pdf_wikipedia",
             description=(
-                "NOUVEAU FIX Wikipedia: détecte l'URL réelle du PDF (lien ou form) puis télécharge via page.request. "
-                "Valide content-type / magic bytes %PDF- pour éviter de sauvegarder du HTML."
+                "FIX Wikipedia: trouve l'URL du vrai PDF en scorant les liens (ignore QrCode/show-download-screen), "
+                "télécharge via page.request.get, valide %PDF-."
             ),
             inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]},
         ),
@@ -486,10 +482,8 @@ async def call_tool(name: str, arguments: dict):
                 return [types.TextContent(type="text", text=safe_json_text(payload))]
 
             elif name == "download_pdf_wikipedia":
-                # NOUVEAU FIX:
-                # - Identifie l'URL du vrai PDF (lien ou heuristique)
-                # - Télécharge via page.request.get
-                # - Vérifie content-type OU magic bytes %PDF- avant de sauver
+                # FIX Wikipedia: score des liens + blacklist QrCode/show-download-screen
+                # Télécharge via page.request.get, valide %PDF-
                 try:
                     try:
                         await page.wait_for_load_state("domcontentloaded", timeout=15000)
@@ -504,40 +498,80 @@ async def call_tool(name: str, arguments: dict):
                                 catch(e) { return null; }
                             };
 
-                            // 1) Liens directs de téléchargement
+                            const bad = (u) => {
+                                const x = (u || '').toLowerCase();
+                                return (
+                                    !x ||
+                                    x.startsWith('javascript:') ||
+                                    x.startsWith('mailto:') ||
+                                    x.includes('special:qrcode') ||
+                                    x.includes('action=show-download-screen')
+                                );
+                            };
+
+                            const score = (u, text) => {
+                                const x = (u || '').toLowerCase();
+                                const t = (text || '').toLowerCase();
+                                let s = 0;
+
+                                // très bons signaux PDF
+                                if (x.includes('/api/rest_v1/')) s += 100;
+                                if (x.includes('/pdf/')) s += 90;
+                                if (x.includes('format=pdf')) s += 80;
+                                if (x.endsWith('.pdf') || x.includes('.pdf?')) s += 80;
+
+                                // bons signaux
+                                if (t.includes('télécharger') || t.includes('download')) s += 20;
+                                if (x.includes('download')) s += 10;
+
+                                // pénalités
+                                if (x.includes('special:downloadaspdf')) s -= 10;
+                                if (x.includes('qrcode')) s -= 1000;
+
+                                return s;
+                            };
+
                             const links = Array.from(document.querySelectorAll('a[href]'))
                               .map(a => ({
                                   href: abs(a.getAttribute('href')),
-                                  text: (a.textContent || '').trim().toLowerCase()
+                                  text: (a.textContent || '').trim()
                               }))
-                              .filter(x => x.href);
+                              .filter(x => x.href && !bad(x.href));
 
-                            const linkPdf = links.find(x =>
-                                x.href.toLowerCase().includes('.pdf') ||
-                                x.href.toLowerCase().includes('/pdf') ||
-                                x.text.includes('télécharger') ||
-                                x.text.includes('download')
-                            );
-                            if (linkPdf) return { kind: "link", url: linkPdf.href };
+                            if (!links.length) return null;
 
-                            // 2) Fallback heuristique: transformer l'URL show-download-screen
-                            const cur = window.location.href;
-                            if (cur.includes('Special:DownloadAsPdf') && cur.includes('action=show-download-screen')) {
-                                // On tente une action "download" (si supportée)
-                                return { kind: "heuristic", url: cur.replace('action=show-download-screen', 'action=download') };
+                            let best = null;
+                            for (const l of links) {
+                                const s = score(l.href, l.text);
+                                if (!best || s > best.score) best = { kind: "link", url: l.href, score: s, text: l.text };
                             }
 
-                            return null;
+                            // si score trop faible: renvoyer un debug
+                            if (!best || best.score < 30) {
+                                return {
+                                    kind: "debug",
+                                    url: null,
+                                    best_guess: best,
+                                    all: links.slice(0, 80)
+                                };
+                            }
+
+                            return best;
                         }
                         """
                     )
 
                     if not candidate or not candidate.get("url"):
-                        payload = {"result": "ERROR", "error": "No candidate PDF URL found", "current_url": page.url}
+                        payload = {
+                            "result": "ERROR",
+                            "error": "No reliable PDF link found",
+                            "current_url": page.url,
+                            "candidate_debug": candidate,
+                        }
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
                     source_url = candidate["url"]
-                    logger.info(f"[WIKI_PDF] candidate kind={candidate.get('kind')} url={source_url}")
+                    logger.info(f"[WIKI_PDF] candidate score={candidate.get('score')} url={source_url}")
 
                     resp = await page.request.get(source_url, timeout=120000)
 
@@ -552,7 +586,6 @@ async def call_tool(name: str, arguments: dict):
                         payload = {"result": "ERROR", "error": "Empty body", "source_url": source_url, "current_url": page.url}
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
-                    # Validation PDF
                     is_pdf = False
                     if ct.lower().startswith("application/pdf"):
                         is_pdf = True
@@ -560,7 +593,7 @@ async def call_tool(name: str, arguments: dict):
                         is_pdf = True
 
                     if not is_pdf:
-                        snippet = body[:200].decode("utf-8", errors="replace")
+                        snippet = body[:400].decode("utf-8", errors="replace")
                         payload = {
                             "result": "ERROR",
                             "error": "Response is not a PDF",
@@ -568,11 +601,11 @@ async def call_tool(name: str, arguments: dict):
                             "current_url": page.url,
                             "content_type": ct,
                             "size_bytes": len(body),
+                            "candidate": candidate,
                             "body_snippet": snippet,
                         }
                         return [types.TextContent(type="text", text=safe_json_text(payload))]
 
-                    # Nom de fichier
                     filename = "wikipedia.pdf"
                     try:
                         cd = resp.headers.get("content-disposition", "")
@@ -602,6 +635,7 @@ async def call_tool(name: str, arguments: dict):
                         "current_url": page.url,
                         "source_url": source_url,
                         "content_type": ct,
+                        "candidate": candidate,
                     }
                     return [types.TextContent(type="text", text=safe_json_text(payload))]
 
