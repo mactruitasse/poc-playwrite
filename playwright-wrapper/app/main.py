@@ -148,6 +148,8 @@ def guess_mime_type(filename: str) -> str:
         return "image/jpeg"
     if fn.endswith(".txt"):
         return "text/plain"
+    if fn.endswith(".html") or fn.endswith(".htm"):
+        return "text/html"
     return "application/octet-stream"
 
 
@@ -258,85 +260,206 @@ def mcp_text(payload: dict, session_id: str | None, page=None):
     return [types.TextContent(type="text", text=safe_json_text(enrich_payload(payload, session_id, page)))]
 
 
-# --- ANALYSE DOM BRUTE ---
-async def extract_deep_dom(page):
-    """
-    Version "light" (comme avant) : utile pour debug rapide.
-    """
-    logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive - light)...")
-    script = """
-    () => {
+def get_origin(url: str | None) -> str | None:
+    if not url:
+        return None
+    try:
+        p = urlparse(url)
+        if not p.scheme or not p.netloc:
+            return None
+        return f"{p.scheme}://{p.netloc}"
+    except Exception:
+        return None
+
+
+# --- SCRIPTS DOM ---
+def dom_extractor_script():
+    return """
+    (maxLen) => {
+        const textLimit = Number(maxLen || 200);
+
+        const normalizeClass = (v) => {
+            try {
+                if (typeof v === 'string') return v || null;
+                if (v && typeof v.baseVal === 'string') return v.baseVal || null;
+                return String(v || '') || null;
+            } catch(e) {
+                return null;
+            }
+        };
+
+        const safeAttr = (el, name) => {
+            try { return el.getAttribute(name); } catch(e) { return null; }
+        };
+
+        const safeProp = (fn) => {
+            try { return fn(); } catch(e) { return null; }
+        };
+
         const elements = document.querySelectorAll('*');
+
         return Array.from(elements).map((el, index) => {
-            const rect = el.getBoundingClientRect();
+            const rect = safeProp(() => el.getBoundingClientRect()) || { width: 0, height: 0, top: 0, left: 0 };
+
+            const href = safeProp(() => el.href || null);
+            const src = safeProp(() => el.src || null);
+            const data = safeProp(() => el.data || null);
+            const action = safeProp(() => el.action || null);
+            const method = safeProp(() => el.method || null);
+            const value = safeProp(() => (el.value !== undefined ? el.value : null));
+            const required = safeProp(() => (el.required === true));
+            const checked = safeProp(() => (el.checked === true));
+            const disabled = safeProp(() => (el.disabled === true));
+            const selected = safeProp(() => (el.selected === true));
+
+            let text = '';
+            try {
+                text = (el.innerText || el.textContent || '').trim().substring(0, textLimit);
+            } catch(e) {
+                text = '';
+            }
+
+            let html = '';
+            try {
+                html = (el.outerHTML || '').substring(0, Math.min(textLimit * 3, 2000));
+            } catch(e) {
+                html = '';
+            }
+
             return {
                 index: index,
-                tag: el.tagName.toLowerCase(),
+                tag: safeProp(() => el.tagName.toLowerCase()) || null,
                 id: el.id || null,
-                class: el.className || null,
-                text: (el.innerText || '').trim().substring(0, 100),
-                href: el.href || null,
-                ariaExpanded: el.getAttribute('aria-expanded'),
-                ariaLabel: el.getAttribute('aria-label'),
-                isVisible: rect.width > 0 && rect.height > 0,
-                rect: { w: rect.width, h: rect.height, t: rect.top, l: rect.left }
+                name: safeAttr(el, 'name'),
+                type: safeAttr(el, 'type'),
+                role: safeAttr(el, 'role'),
+                title: safeAttr(el, 'title'),
+                placeholder: safeAttr(el, 'placeholder'),
+                value: value,
+                required: required,
+                checked: checked,
+                selected: selected,
+                disabled: disabled,
+                class: normalizeClass(el.className),
+                text: text,
+                html: html,
+                href: href,
+                src: src,
+                data: data,
+                action: action,
+                method: method,
+                target: safeAttr(el, 'target'),
+                rel: safeAttr(el, 'rel'),
+                download: safeAttr(el, 'download'),
+                ariaExpanded: safeAttr(el, 'aria-expanded'),
+                ariaLabel: safeAttr(el, 'aria-label'),
+                frameSrc: (safeProp(() => el.tagName.toLowerCase()) === 'iframe') ? src : null,
+                isVisible: (rect.width > 0 && rect.height > 0),
+                rect: {
+                    w: rect.width || 0,
+                    h: rect.height || 0,
+                    t: rect.top || 0,
+                    l: rect.left || 0
+                }
             };
         }).filter(el => !['script', 'style', 'meta', 'link', 'noscript'].includes(el.tag));
     }
     """
-    return await page.evaluate(script)
+
+
+async def extract_dom_from_target(target, text_max_len: int):
+    return await target.evaluate(dom_extractor_script(), int(text_max_len))
+
+
+async def extract_deep_dom(page):
+    logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive - light)...")
+    return await extract_dom_from_target(page, 120)
 
 
 async def extract_deep_dom_full(page, text_max_len: int):
-    """
-    Version "full" : plus d'attributs utiles + texte plus long.
-    (On écrit dans un fichier en Option C, pour éviter les limites de transport SSE/MCP.)
-    """
     logger.info("[DOM] Execution du RAW Scout Report (Extraction exhaustive - FULL)...")
-    script = """
-    (maxLen) => {
-        const elements = document.querySelectorAll('*');
-        return Array.from(elements).map((el, index) => {
-            const rect = el.getBoundingClientRect();
+    return await extract_dom_from_target(page, text_max_len)
 
-            // Certains attributs peuvent throw selon context; on protège un minimum
-            let href = null;
-            try { href = el.href || null; } catch(e) { href = null; }
 
-            let value = null;
-            try {
-                // value uniquement sur inputs/textarea/select (sinon undefined)
-                value = (el.value !== undefined) ? el.value : null;
-            } catch(e) {
-                value = null;
-            }
-
-            let required = null;
-            try { required = (el.required === true); } catch(e) { required = null; }
-
-            return {
-                index: index,
-                tag: el.tagName.toLowerCase(),
-                id: el.id || null,
-                name: el.getAttribute('name'),
-                type: el.getAttribute('type'),
-                role: el.getAttribute('role'),
-                title: el.getAttribute('title'),
-                placeholder: el.getAttribute('placeholder'),
-                value: value,
-                required: required,
-                class: el.className || null,
-                text: (el.innerText || '').trim().substring(0, maxLen),
-                href: href,
-                ariaExpanded: el.getAttribute('aria-expanded'),
-                ariaLabel: el.getAttribute('aria-label'),
-                isVisible: rect.width > 0 && rect.height > 0,
-                rect: { w: rect.width, h: rect.height, t: rect.top, l: rect.left }
-            };
-        }).filter(el => !['script', 'style', 'meta', 'link', 'noscript'].includes(el.tag));
-    }
+async def extract_frames_report(page, text_max_len: int = 200, include_dom: bool = True):
     """
-    return await page.evaluate(script, int(text_max_len))
+    Inspecte toutes les frames Playwright, y compris les iframes.
+    Retourne:
+    - meta des frames
+    - URL réelle
+    - parent frame
+    - DOM interne (si include_dom=True)
+    """
+    logger.info(f"[FRAMES] Extraction frames include_dom={include_dom} text_max_len={text_max_len}")
+
+    page_origin = get_origin(page.url)
+    page_frames = page.frames
+    frame_reports = []
+
+    for idx, frame in enumerate(page_frames):
+        frame_url = None
+        frame_name = None
+        frame_title = None
+        frame_origin = None
+        frame_parent_url = None
+        same_origin = None
+        dom = None
+        dom_error = None
+
+        try:
+            frame_url = frame.url
+        except Exception as e:
+            frame_url = f"ERROR:{e}"
+
+        try:
+            frame_name = frame.name
+        except Exception:
+            frame_name = None
+
+        try:
+            frame_origin = get_origin(frame_url)
+            same_origin = (frame_origin == page_origin) if frame_origin and page_origin else None
+        except Exception:
+            same_origin = None
+
+        try:
+            parent = frame.parent_frame
+            if parent:
+                frame_parent_url = parent.url
+        except Exception:
+            frame_parent_url = None
+
+        try:
+            frame_title = await frame.title()
+        except Exception:
+            frame_title = None
+
+        if include_dom:
+            try:
+                dom = await extract_dom_from_target(frame, text_max_len)
+            except Exception as e:
+                dom_error = str(e)
+
+        frame_reports.append({
+            "frame_index": idx,
+            "name": frame_name,
+            "url": frame_url,
+            "origin": frame_origin,
+            "same_origin_as_page": same_origin,
+            "title": frame_title,
+            "parent_url": frame_parent_url,
+            "is_main_frame": (frame == page.main_frame),
+            "dom_count": len(dom) if isinstance(dom, list) else None,
+            "dom_error": dom_error,
+            "elements": dom,
+        })
+
+    return {
+        "page_url": page.url,
+        "page_origin": page_origin,
+        "frame_count": len(frame_reports),
+        "frames": frame_reports,
+    }
 
 
 def attach_verbose_playwright_listeners(page):
@@ -390,7 +513,7 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="navigate",
-            description="Navigation + RAW Scout DOM (light) inline",
+            description="Navigation + RAW Scout DOM (light) inline + résumé des frames",
             inputSchema={
                 "type": "object",
                 "properties": {"url": {"type": "string"}, **s_id},
@@ -405,12 +528,44 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="scout_dom_full_to_file",
             description=(
-                "OPTION C (recommandé): Scout DOM FULL -> écrit un JSON dans /app/downloads et renvoie meta + path + sha256. "
+                "Scout DOM FULL de la page courante -> écrit un JSON dans /app/downloads et renvoie meta + path + sha256. "
                 "Utiliser read_file_chunk pour récupérer le fichier en base64 par morceaux."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {"text_max_len": {"type": "integer", "description": "Longueur max innerText par élément (défaut env DOM_TEXT_MAX)"}, **s_id},
+                "required": ["session_id"],
+            },
+        ),
+        types.Tool(
+            name="scout_frames",
+            description=(
+                "Inspecte toutes les frames/iframes de la page et renvoie inline un résumé: url, name, parent_url, "
+                "same_origin, dom_count, erreurs éventuelles."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text_max_len": {"type": "integer"},
+                    "include_dom": {"type": "boolean"},
+                    **s_id
+                },
+                "required": ["session_id"],
+            },
+        ),
+        types.Tool(
+            name="scout_frames_to_file",
+            description=(
+                "Inspecte toutes les frames/iframes et écrit un JSON détaillé dans /app/downloads. "
+                "Très utile pour voir le contenu des iframes. Utiliser read_file_chunk ensuite."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text_max_len": {"type": "integer"},
+                    "include_dom": {"type": "boolean"},
+                    **s_id
+                },
                 "required": ["session_id"],
             },
         ),
@@ -497,10 +652,30 @@ async def call_tool(name: str, arguments: dict):
                 logger.debug(f"[NAV] landed {page.url}")
 
                 # Petit délai anti-hydration
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(0.6)
 
                 dom = await extract_deep_dom(page)
-                payload = {"url": page.url, "scout_report": dom}
+                frames_report = await extract_frames_report(page, text_max_len=120, include_dom=False)
+
+                payload = {
+                    "url": page.url,
+                    "scout_report": dom,
+                    "frames_summary": {
+                        "frame_count": frames_report["frame_count"],
+                        "frames": [
+                            {
+                                "frame_index": f["frame_index"],
+                                "name": f["name"],
+                                "url": f["url"],
+                                "origin": f["origin"],
+                                "same_origin_as_page": f["same_origin_as_page"],
+                                "parent_url": f["parent_url"],
+                                "is_main_frame": f["is_main_frame"],
+                            }
+                            for f in frames_report["frames"]
+                        ],
+                    },
+                }
                 return mcp_text(payload, session_id, page)
 
             elif name == "scout_dom":
@@ -513,12 +688,10 @@ async def call_tool(name: str, arguments: dict):
 
                 dom = await extract_deep_dom_full(page, text_max_len=text_max_len)
 
-                # Écriture fichier (Option C)
                 ts = int(time.time())
                 filename = f"scout_dom_full_{session_id}_{ts}.json"
                 file_path = os.path.join(DOWNLOAD_PATH, filename)
 
-                # JSON compact (moins gros que indent=2)
                 payload_file = {
                     "generated_at_unix": ts,
                     "page_url": page.url,
@@ -542,6 +715,72 @@ async def call_tool(name: str, arguments: dict):
                     "size_bytes": size_bytes,
                     "sha256": sha256,
                     "chunk_recommended_bytes": DEFAULT_CHUNK_SIZE,
+                }
+                return mcp_text(payload, session_id, page)
+
+            elif name == "scout_frames":
+                text_max_len = int(arguments.get("text_max_len") or DOM_TEXT_MAX)
+                include_dom = bool(arguments.get("include_dom", True))
+
+                frames_report = await extract_frames_report(page, text_max_len=text_max_len, include_dom=include_dom)
+
+                if not include_dom:
+                    frames_report = {
+                        **frames_report,
+                        "frames": [
+                            {
+                                "frame_index": f["frame_index"],
+                                "name": f["name"],
+                                "url": f["url"],
+                                "origin": f["origin"],
+                                "same_origin_as_page": f["same_origin_as_page"],
+                                "title": f["title"],
+                                "parent_url": f["parent_url"],
+                                "is_main_frame": f["is_main_frame"],
+                                "dom_count": f["dom_count"],
+                                "dom_error": f["dom_error"],
+                            }
+                            for f in frames_report["frames"]
+                        ]
+                    }
+
+                return mcp_text(frames_report, session_id, page)
+
+            elif name == "scout_frames_to_file":
+                text_max_len = int(arguments.get("text_max_len") or DOM_TEXT_MAX)
+                include_dom = bool(arguments.get("include_dom", True))
+
+                frames_report = await extract_frames_report(page, text_max_len=text_max_len, include_dom=include_dom)
+
+                ts = int(time.time())
+                filename = f"scout_frames_{session_id}_{ts}.json"
+                file_path = os.path.join(DOWNLOAD_PATH, filename)
+
+                payload_file = {
+                    "generated_at_unix": ts,
+                    "page_url": page.url,
+                    "text_max_len": text_max_len,
+                    "include_dom": include_dom,
+                    "frames_report": frames_report,
+                }
+
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(payload_file, f, ensure_ascii=False, separators=(",", ":"))
+
+                size_bytes = os.path.getsize(file_path)
+                sha256 = file_sha256(file_path)
+
+                logger.info(f"[FRAMES_FULL] saved={file_path} size={size_bytes} sha256={sha256}")
+
+                payload = {
+                    "result": "OK",
+                    "filename": filename,
+                    "path": file_path,
+                    "mimeType": "application/json",
+                    "size_bytes": size_bytes,
+                    "sha256": sha256,
+                    "chunk_recommended_bytes": DEFAULT_CHUNK_SIZE,
+                    "frame_count": frames_report["frame_count"],
                 }
                 return mcp_text(payload, session_id, page)
 
@@ -602,7 +841,29 @@ async def call_tool(name: str, arguments: dict):
                     await asyncio.sleep(0.6)
 
                 new_dom = await extract_deep_dom(page)
-                payload = {"action": "click", "result": "OK", "new_url": page.url, "scout_report": new_dom}
+                frames_report = await extract_frames_report(page, text_max_len=120, include_dom=False)
+
+                payload = {
+                    "action": "click",
+                    "result": "OK",
+                    "new_url": page.url,
+                    "scout_report": new_dom,
+                    "frames_summary": {
+                        "frame_count": frames_report["frame_count"],
+                        "frames": [
+                            {
+                                "frame_index": f["frame_index"],
+                                "name": f["name"],
+                                "url": f["url"],
+                                "origin": f["origin"],
+                                "same_origin_as_page": f["same_origin_as_page"],
+                                "parent_url": f["parent_url"],
+                                "is_main_frame": f["is_main_frame"],
+                            }
+                            for f in frames_report["frames"]
+                        ],
+                    },
+                }
                 return mcp_text(payload, session_id, page)
 
             elif name == "fill_input":
@@ -618,7 +879,6 @@ async def call_tool(name: str, arguments: dict):
                         page,
                     )
 
-                # ✅ fill() est beaucoup plus fiable que focus()+type()
                 await page.locator(selector).fill(value)
 
                 payload = {"action": "fill", "result": "OK"}
@@ -845,8 +1105,6 @@ async def call_tool(name: str, arguments: dict):
 
             elif name == "screenshot":
                 img = await page.screenshot(type="png", full_page=False)
-                # ImageContent ne supporte pas enrich_payload proprement (c'est binaire).
-                # Si tu veux pod_url/session_id pour screenshot aussi, fais un outil séparé qui renvoie du JSON + un fichier.
                 return [types.ImageContent(type="image", data=base64.b64encode(img).decode(), mimeType="image/png")]
 
             else:
