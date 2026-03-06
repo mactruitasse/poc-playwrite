@@ -18,12 +18,18 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
 UVICORN_LOG_LEVEL = os.getenv("UVICORN_LOG_LEVEL", "debug").lower()
 PW_VERBOSE = os.getenv("PW_VERBOSE", "0") == "1"
 
+# Sécurité secrets
+# Si défini, seuls les secret_name commençant par ce préfixe sont autorisés.
+# Ex: SECRET_NAME_PREFIX=PW_SECRET_
+SECRET_NAME_PREFIX = os.getenv("SECRET_NAME_PREFIX", "")
+
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.DEBUG),
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
     stream=sys.stdout,
 )
 logger = logging.getLogger("mcp-manager")
+
 
 # --- FILTRES ANTI "PING" / POLL (uvicorn access + SSE starlette) ---
 class DropNoisyHttpLogs(logging.Filter):
@@ -76,7 +82,7 @@ try:
     import mcp.types as types
     from playwright.async_api import async_playwright
 except ImportError as e:
-    logger.error(f"[FATAL] Dependance manquante dans le Pod : {e}")
+    logger.error(f"[FATAL] Dépendance manquante dans le Pod : {e}")
     raise
 
 
@@ -270,6 +276,32 @@ def get_origin(url: str | None) -> str | None:
         return f"{p.scheme}://{p.netloc}"
     except Exception:
         return None
+
+
+def resolve_secret_from_env(secret_name: str) -> str:
+    """
+    Lit un secret depuis les variables d'environnement du conteneur.
+    Ne log jamais la valeur.
+
+    Sécurité optionnelle:
+    - si SECRET_NAME_PREFIX est défini, le nom doit commencer par ce préfixe
+    """
+    if not secret_name:
+        raise ValueError("secret_name is required")
+
+    if SECRET_NAME_PREFIX and not secret_name.startswith(SECRET_NAME_PREFIX):
+        raise ValueError(
+            f"secret_name '{secret_name}' is not allowed; it must start with prefix '{SECRET_NAME_PREFIX}'"
+        )
+
+    value = os.getenv(secret_name)
+    if value is None:
+        raise ValueError(f"Secret not found in environment: {secret_name}")
+
+    if value == "":
+        raise ValueError(f"Secret is empty: {secret_name}")
+
+    return value
 
 
 # --- SCRIPTS DOM ---
@@ -580,7 +612,7 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="fill_input",
-            description="Saisie de texte (robuste via locator.fill)",
+            description="Saisie de texte en clair (robuste via locator.fill)",
             inputSchema={
                 "type": "object",
                 "properties": {"selector": {"type": "string"}, "value": {"type": "string"}, **s_id},
@@ -588,9 +620,25 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="fill_secret_input",
+            description=(
+                "Saisie d'un secret depuis une variable d'environnement du conteneur. "
+                "On fournit secret_name au lieu de value. La valeur du secret n'est jamais renvoyée."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "selector": {"type": "string"},
+                    "secret_name": {"type": "string", "description": "Nom de la variable d'environnement à lire"},
+                    **s_id
+                },
+                "required": ["selector", "secret_name", "session_id"],
+            },
+        ),
+        types.Tool(
             name="download_file",
             description=(
-                "Telechargement via expect_download (Support 'idx:N'). "
+                "Téléchargement via expect_download (Support 'idx:N'). "
                 "Retourne meta + path + taille + sha256. Utiliser read_file_chunk pour récupérer le binaire."
             ),
             inputSchema={
@@ -618,7 +666,7 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="screenshot",
-            description="Capture d'ecran HD",
+            description="Capture d'écran HD",
             inputSchema={"type": "object", "properties": {**s_id}, "required": ["session_id"]},
         ),
         types.Tool(
@@ -635,7 +683,7 @@ async def call_tool(name: str, arguments: dict):
         logger.info(f"[PVC] Purge du dossier {DOWNLOAD_PATH}...")
         shutil.rmtree(DOWNLOAD_PATH, ignore_errors=True)
         os.makedirs(DOWNLOAD_PATH, exist_ok=True)
-        return [types.TextContent(type="text", text="Stockage PVC nettoye.")]
+        return [types.TextContent(type="text", text="Stockage PVC nettoyé.")]
 
     session_id = arguments.get("session_id")
 
@@ -869,7 +917,9 @@ async def call_tool(name: str, arguments: dict):
             elif name == "fill_input":
                 selector = arguments["selector"]
                 value = arguments["value"]
-                logger.info(f"[FILL] selector={selector} len(value)={len(value)}")
+
+                # Ne pas logger la valeur
+                logger.info(f"[FILL] selector={selector} mode=plain len(value)={len(value)}")
 
                 ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
                 if not ok:
@@ -881,7 +931,45 @@ async def call_tool(name: str, arguments: dict):
 
                 await page.locator(selector).fill(value)
 
-                payload = {"action": "fill", "result": "OK"}
+                payload = {
+                    "action": "fill",
+                    "result": "OK",
+                    "mode": "plain",
+                    "selector": selector,
+                }
+                return mcp_text(payload, session_id, page)
+
+            elif name == "fill_secret_input":
+                selector = arguments["selector"]
+                secret_name = arguments["secret_name"]
+
+                # Ne jamais logger la valeur du secret
+                logger.info(f"[FILL_SECRET] selector={selector} secret_name={secret_name}")
+
+                ok = await wait_for_selector_soft(page, selector, timeout_ms=15000)
+                if not ok:
+                    return mcp_text(
+                        {
+                            "result": "ERROR",
+                            "error": "Selector not found (timeout waiting attached)",
+                            "selector": selector,
+                            "secret_name": secret_name,
+                            "current_url": page.url,
+                        },
+                        session_id,
+                        page,
+                    )
+
+                secret_value = resolve_secret_from_env(secret_name)
+                await page.locator(selector).fill(secret_value)
+
+                payload = {
+                    "action": "fill",
+                    "result": "OK",
+                    "mode": "secret",
+                    "selector": selector,
+                    "secret_name": secret_name,
+                }
                 return mcp_text(payload, session_id, page)
 
             elif name == "download_file":
@@ -1130,7 +1218,13 @@ async def sse_endpoint(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "sessions": len(sessions), "download_path": DOWNLOAD_PATH, "pod_url": POD_URL}
+    return {
+        "status": "ok",
+        "sessions": len(sessions),
+        "download_path": DOWNLOAD_PATH,
+        "pod_url": POD_URL,
+        "secret_name_prefix": SECRET_NAME_PREFIX,
+    }
 
 
 app.add_route("/sse", sse_endpoint, methods=["GET"])
